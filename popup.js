@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:3000';
+let API_BASE = 'http://localhost:3000';
 let categories = [];
 let links = [];
 let workspaces = [];
@@ -19,6 +19,23 @@ const $categoryListModal = $('categoryListModal');
 const $categoryModal = $('categoryModal');
 const $workspaceListModal = $('workspaceListModal');
 const $workspaceModal = $('workspaceModal');
+const $settingsModal = $('settingsModal');
+
+function getApiBaseFromStorage() {
+  return new Promise((resolve) => {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get(['apiBase'], (r) => resolve(r.apiBase || 'http://localhost:3000'));
+    } else resolve('http://localhost:3000');
+  });
+}
+
+function setApiBaseToStorage(url) {
+  return new Promise((resolve) => {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({ apiBase: url }, resolve);
+    } else resolve();
+  });
+}
 
 async function api(path, options = {}) {
   try {
@@ -39,7 +56,7 @@ async function api(path, options = {}) {
 }
 
 function setApiStatus(ok, message) {
-  $apiStatus.textContent = message || (ok ? '연결됨' : '서버 연결 실패 (localhost:3000 실행 확인)');
+  $apiStatus.textContent = message || (ok ? '연결됨' : `서버 연결 실패 (${API_BASE} 확인)`);
   $apiStatus.classList.toggle('error', !ok);
   $apiStatus.classList.toggle('ok', ok);
 }
@@ -724,7 +741,41 @@ $categoryModal.addEventListener('click', (e) => { if (e.target === $categoryModa
 $workspaceListModal.addEventListener('click', (e) => { if (e.target === $workspaceListModal) closeWorkspaceListModal(); });
 $workspaceModal.addEventListener('click', (e) => { if (e.target === $workspaceModal) closeWorkspaceModal(); });
 
+function openSettingsModal() {
+  $('apiBaseInput').value = API_BASE;
+  $settingsModal.classList.add('show');
+}
+function closeSettingsModal() {
+  $settingsModal.classList.remove('show');
+}
+
+$('settingsBtn').addEventListener('click', openSettingsModal);
+$('settingsModalClose').addEventListener('click', closeSettingsModal);
+$('settingsFormCancel').addEventListener('click', closeSettingsModal);
+$settingsModal.addEventListener('click', (e) => { if (e.target === $settingsModal) closeSettingsModal(); });
+
+$('settingsForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  let url = $('apiBaseInput').value.trim();
+  if (!url) url = 'http://localhost:3000';
+  if (!url.startsWith('http')) url = 'http://' + url;
+  try {
+    await setApiBaseToStorage(url);
+    API_BASE = url.replace(/\/+$/, '');
+    closeSettingsModal();
+    const ok = await loadCategories();
+    if (ok) loadLinks();
+    else $currentCategoryTitle.textContent = '전체 링크';
+    await loadWorkspaces();
+    setViewMode(viewMode);
+  } catch (err) {
+    alert('저장 실패: ' + err.message);
+  }
+});
+
 async function init() {
+  API_BASE = await getApiBaseFromStorage();
+  API_BASE = API_BASE.replace(/\/+$/, '');
   const ok = await loadCategories();
   if (ok) loadLinks();
   else $currentCategoryTitle.textContent = '전체 링크';

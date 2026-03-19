@@ -31,6 +31,10 @@
           <span class="sidebar-footer-icon" aria-hidden="true">🧩</span>
           <span class="sidebar-footer-label">그룹 편집</span>
         </button>
+        <button type="button" class="sidebar-footer-item" id="settingsBtn" title="서버 주소 설정">
+          <span class="sidebar-footer-icon" aria-hidden="true">⚙</span>
+          <span class="sidebar-footer-label">설정</span>
+        </button>
         <button type="button" class="sidebar-footer-item sidebar-collapse-btn" id="sidebarCollapseBtn" title="사이드바 접기">
           <span class="sidebar-footer-icon" aria-hidden="true">‹</span>
           <span class="sidebar-footer-label">접기</span>
@@ -204,6 +208,27 @@
         <div class="form-actions">
           <button type="button" class="btn" id="workspaceFormCancel">취소</button>
           <button type="submit" class="btn btn-primary" id="workspaceSubmitBtn">저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 서버 주소 설정 모달 -->
+  <div class="modal" id="settingsModal">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h3>서버 주소 설정</h3>
+        <button type="button" class="modal-close" id="settingsModalClose">&times;</button>
+      </div>
+      <form id="settingsForm">
+        <div class="form-group">
+          <label for="apiBaseInput">Link_in API 서버 주소</label>
+          <input type="text" id="apiBaseInput" placeholder="http://192.168.0.12:3000" />
+          <p class="form-hint">같은 PC: localhost:3000 / 내부망: 서버 PC IP:3000</p>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn" id="settingsFormCancel">취소</button>
+          <button type="submit" class="btn btn-primary">저장</button>
         </div>
       </form>
     </div>

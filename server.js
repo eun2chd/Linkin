@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const multer = require('multer');
 const { pool, query, initDb } = require('./db');
 
@@ -360,13 +361,25 @@ app.delete('/api/workspaces/:id', async (req, res) => {
   }
 });
 
+function getLocalIP() {
+  const ifaces = os.networkInterfaces();
+  for (const name of Object.keys(ifaces)) {
+    for (const iface of ifaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) return iface.address;
+    }
+  }
+  return null;
+}
+
 // DB 초기화 후 서버 시작 (모든 라우트 등록 후 실행)
 let serverStarted = false;
 function startServer() {
   if (serverStarted) return;
   serverStarted = true;
-  app.listen(PORT, () => {
-    console.log(`Link_in API server http://localhost:${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    const ip = getLocalIP();
+    const addr = ip ? `http://${ip}:${PORT}` : `http://localhost:${PORT}`;
+    console.log(`Link_in API server ${addr}`);
   });
 }
 initDb()
