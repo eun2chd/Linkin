@@ -62,13 +62,13 @@
       </div>
       <div class="memo-panel" id="memoPanel">
         <div class="memo-panel-header">
-          <span class="memo-panel-title" id="memoPanelTitle"></span>
+          <div class="memo-panel-header-left">
+            <span class="memo-panel-title" id="memoPanelTitle"></span>
+            <a href="#" id="memoPanelGoLink" target="_blank" rel="noopener" class="btn btn-sm btn-primary">사이트 이동</a>
+          </div>
           <button type="button" class="memo-panel-close" id="memoPanelClose" title="닫기">&times;</button>
         </div>
         <div class="memo-panel-body" id="memoPanelBody"></div>
-        <div class="memo-panel-footer">
-          <a href="#" id="memoPanelGoLink" target="_blank" rel="noopener" class="btn btn-sm btn-primary">사이트 이동</a>
-        </div>
       </div>
       <footer class="api-status" id="apiStatus">서버 연결 중...</footer>
     </main>
@@ -76,7 +76,7 @@
 
   <!-- 링크 추가/수정 모달 -->
   <div class="modal" id="linkModal">
-    <div class="modal-content">
+    <div class="modal-content modal-link">
       <div class="modal-header">
         <h3 id="linkModalTitle">링크 추가</h3>
         <button type="button" class="modal-close" id="linkModalClose">&times;</button>
@@ -111,7 +111,7 @@
         </div>
         <div class="form-group">
           <label for="linkNote">메모 (로그인 힌트 등)</label>
-          <textarea id="linkNote" rows="2" placeholder="예: 크롬에서만 작동 / 로그인 힌트: 내 생일+!"></textarea>
+          <textarea id="linkNote" rows="6" placeholder="예: 크롬에서만 작동 / 로그인 힌트: 내 생일+!"></textarea>
           <p class="form-hint">해당 사이트 이용 시 기억할 내용을 적어두면 카드 하단에 표시됩니다.</p>
         </div>
         <div class="form-group">

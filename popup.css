@@ -248,6 +248,60 @@ body {
   color: #fff;
 }
 
+.category-list.category-list--reorderable > li:not(.category-item-all) {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 4px;
+}
+.category-list.category-list--reorderable > li:not(.category-item-all) .cat-btn {
+  flex: 1;
+  min-width: 0;
+}
+.category-drag-handle {
+  flex-shrink: 0;
+  width: 20px;
+  min-height: 36px;
+  border: 1px solid #e5e7eb;
+  background: #f3f4f6;
+  color: #9ca3af;
+  cursor: grab;
+  font-size: 10px;
+  line-height: 1;
+  padding: 0;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.category-drag-handle:hover {
+  background: #e5e7eb;
+  color: #6b7280;
+}
+.category-drag-handle:active {
+  cursor: grabbing;
+}
+.category-list.category-list--reorderable .category-item-dragging {
+  opacity: 0.55;
+}
+.category-list.category-list--reorderable .category-item-drag-over {
+  position: relative;
+}
+.category-list.category-list--reorderable .category-item-drag-over::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 3px;
+  background: #2563eb;
+  border-radius: 2px;
+  z-index: 2;
+  pointer-events: none;
+}
+
 .workspace-list {
   list-style: none;
   margin: 0;
@@ -368,6 +422,72 @@ body {
 .link-list > li {
   min-width: 0;
 }
+
+/* 드래그로 정렬 (카테고리 선택 + 검색 없을 때) */
+.link-list.link-list--reorderable:not(.list-view) > li:not(.empty-state) {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+.link-list.list-view.link-list--reorderable > li:not(.empty-state) {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  min-width: 0;
+}
+.link-list.link-list--reorderable:not(.list-view) > li:not(.empty-state) .link-card,
+.link-list.list-view.link-list--reorderable > li:not(.empty-state) .link-row {
+  flex: 1;
+  min-width: 0;
+}
+.link-drag-handle {
+  flex-shrink: 0;
+  width: 22px;
+  align-self: stretch;
+  min-height: 40px;
+  border: 1px solid #e5e7eb;
+  background: #f3f4f6;
+  color: #9ca3af;
+  cursor: grab;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.link-drag-handle:hover {
+  background: #e5e7eb;
+  color: #6b7280;
+}
+.link-drag-handle:active {
+  cursor: grabbing;
+}
+.link-list.link-list--reorderable .link-item-dragging {
+  opacity: 0.55;
+}
+.link-list.link-list--reorderable .link-item-drag-over {
+  position: relative;
+}
+.link-list.link-list--reorderable .link-item-drag-over::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 3px;
+  background: #2563eb;
+  border-radius: 2px;
+  z-index: 2;
+  pointer-events: none;
+}
+
 .link-card {
   display: flex;
   flex-direction: row;
@@ -738,9 +858,9 @@ body {
   background: #f8f9fa;
   border-top: 1px solid #e9ecef;
   padding: 12px 20px 16px;
-  height: 260px;
-  min-height: 260px;
-  max-height: 320px;
+  height: 380px;
+  min-height: 380px;
+  max-height: 50vh;
   flex-direction: column;
 }
 .memo-panel.show {
@@ -750,12 +870,24 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 8px;
+}
+.memo-panel-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
 }
 .memo-panel-title {
   font-size: 13px;
   font-weight: 600;
   color: #111;
+}
+.memo-panel-header-left .btn {
+  text-decoration: none;
+  flex-shrink: 0;
 }
 .memo-panel-close {
   border: none;
@@ -783,13 +915,6 @@ body {
 .memo-panel-body.memo-panel-empty {
   color: #9ca3af;
   font-style: italic;
-}
-.memo-panel-footer {
-  padding-top: 8px;
-  border-top: 1px solid #e9ecef;
-}
-.memo-panel-footer .btn {
-  text-decoration: none;
 }
 
 /* Modal */
@@ -824,6 +949,14 @@ body {
 .modal-workspace {
   max-width: 520px;
   width: 90vw;
+}
+.modal-link {
+  max-width: 520px;
+  width: 90vw;
+}
+.modal-link #linkNote {
+  min-height: 140px;
+  resize: vertical;
 }
 .modal-header {
   display: flex;

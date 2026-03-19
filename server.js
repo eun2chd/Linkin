@@ -121,6 +121,36 @@ app.get('/api/categories', async (req, res) => {
   }
 });
 
+/** body: { items: [{ id: number, sort_order: number }, ...] } */
+app.patch('/api/categories/reorder', async (req, res) => {
+  try {
+    const { items } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'items 배열이 필요합니다.' });
+    }
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      for (const row of items) {
+        const id = Number(row.id);
+        const sortOrder = Number(row.sort_order);
+        if (!Number.isFinite(id) || !Number.isFinite(sortOrder)) continue;
+        await conn.execute('UPDATE categories SET sort_order = ? WHERE id = ?', [sortOrder, id]);
+      }
+      await conn.commit();
+      res.json({ ok: true });
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    } finally {
+      conn.release();
+    }
+  } catch (e) {
+    console.error('PATCH /api/categories/reorder', e);
+    res.status(500).json({ error: e.message || '순서 저장 중 오류가 났습니다.' });
+  }
+});
+
 app.post('/api/categories', async (req, res) => {
   try {
     const { name, sort_order = 0 } = req.body;
@@ -179,6 +209,36 @@ app.get('/api/links', async (req, res) => {
   } catch (e) {
     console.error('GET /api/links', e);
     res.status(500).json({ error: e.message });
+  }
+});
+
+/** body: { items: [{ id: number, sort_order: number }, ...] } */
+app.patch('/api/links/reorder', async (req, res) => {
+  try {
+    const { items } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'items 배열이 필요합니다.' });
+    }
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      for (const row of items) {
+        const id = Number(row.id);
+        const sortOrder = Number(row.sort_order);
+        if (!Number.isFinite(id) || !Number.isFinite(sortOrder)) continue;
+        await conn.execute('UPDATE links SET sort_order = ? WHERE id = ?', [sortOrder, id]);
+      }
+      await conn.commit();
+      res.json({ ok: true });
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    } finally {
+      conn.release();
+    }
+  } catch (e) {
+    console.error('PATCH /api/links/reorder', e);
+    res.status(500).json({ error: e.message || '순서 저장 중 오류가 났습니다.' });
   }
 });
 

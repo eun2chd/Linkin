@@ -6,6 +6,8 @@ let allLinksForWorkspace = [];
 let selectedCategoryId = null;
 let searchQuery = '';
 let viewMode = 'grid'; // 'grid' | 'list'
+let draggedLinkId = null;
+let draggedCategoryId = null;
 
 const $ = (id) => document.getElementById(id);
 const $categoryList = $('categoryList');
@@ -87,7 +89,11 @@ async function loadLinks() {
 
 function renderCategories() {
   $categoryList.innerHTML = '';
+  const canReorderCategories = categories.length > 1;
+  $categoryList.classList.toggle('category-list--reorderable', canReorderCategories);
+
   const allBtn = document.createElement('li');
+  allBtn.className = 'category-item-all';
   allBtn.innerHTML = `<button type="button" class="cat-btn ${selectedCategoryId === null ? 'active' : ''}" data-id="">전체</button>`;
   allBtn.querySelector('.cat-btn').addEventListener('click', () => {
     selectedCategoryId = null;
@@ -96,15 +102,77 @@ function renderCategories() {
     $currentCategoryTitle.textContent = '전체 링크';
   });
   $categoryList.appendChild(allBtn);
+
   categories.forEach((cat) => {
     const li = document.createElement('li');
-    li.innerHTML = `<button type="button" class="cat-btn ${selectedCategoryId === cat.id ? 'active' : ''}" data-id="${cat.id}">${escapeHtml(cat.name)}</button>`;
-    li.querySelector('.cat-btn').addEventListener('click', () => {
+    const activeClass = selectedCategoryId === cat.id ? 'active' : '';
+    const handleHtml = canReorderCategories
+      ? `<button type="button" class="category-drag-handle" draggable="true" title="드래그하여 순서 변경" aria-label="순서 변경">⋮⋮</button>`
+      : '';
+    li.innerHTML = `${handleHtml}<button type="button" class="cat-btn ${activeClass}" data-id="${cat.id}">${escapeHtml(cat.name)}</button>`;
+    const catBtn = li.querySelector('.cat-btn');
+    catBtn.addEventListener('click', () => {
       selectedCategoryId = cat.id;
       renderCategories();
       loadLinks();
       $currentCategoryTitle.textContent = cat.name;
     });
+
+    if (canReorderCategories) {
+      const handle = li.querySelector('.category-drag-handle');
+      if (handle) {
+        handle.addEventListener('click', (e) => e.stopPropagation());
+        handle.addEventListener('dragstart', (e) => {
+          e.stopPropagation();
+          draggedCategoryId = cat.id;
+          li.classList.add('category-item-dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', String(cat.id));
+        });
+        handle.addEventListener('dragend', () => {
+          draggedCategoryId = null;
+          li.classList.remove('category-item-dragging');
+          $categoryList.querySelectorAll('.category-item-drag-over').forEach((el) => el.classList.remove('category-item-drag-over'));
+        });
+        li.addEventListener('dragover', (e) => {
+          if (draggedCategoryId == null) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          $categoryList.querySelectorAll('.category-item-drag-over').forEach((el) => {
+            if (el !== li) el.classList.remove('category-item-drag-over');
+          });
+          li.classList.add('category-item-drag-over');
+        });
+        li.addEventListener('dragleave', (e) => {
+          if (!li.contains(e.relatedTarget)) li.classList.remove('category-item-drag-over');
+        });
+        li.addEventListener('drop', async (e) => {
+          if (draggedCategoryId == null) return;
+          e.preventDefault();
+          e.stopPropagation();
+          li.classList.remove('category-item-drag-over');
+          const dragId = draggedCategoryId;
+          const targetId = cat.id;
+          if (dragId === targetId) return;
+          const orderedIds = categories.map((c) => c.id);
+          const from = orderedIds.indexOf(dragId);
+          let to = orderedIds.indexOf(targetId);
+          if (from === -1 || to === -1) return;
+          const next = [...orderedIds];
+          next.splice(from, 1);
+          if (from < to) to -= 1;
+          next.splice(to, 0, dragId);
+          try {
+            await persistCategoryOrder(next);
+            await loadCategories();
+            await loadLinks();
+          } catch (err) {
+            alert('카테고리 순서 저장 실패: ' + (err.message || ''));
+          }
+        });
+      }
+    }
+
     $categoryList.appendChild(li);
   });
 }
@@ -190,6 +258,26 @@ function logoFullUrl(url) {
   return url.startsWith('http') ? url : API_BASE + (url.startsWith('/') ? url : '/' + url);
 }
 
+function canReorderLinks() {
+  return selectedCategoryId !== null && !String(searchQuery || '').trim();
+}
+
+async function persistLinkOrder(orderedIds) {
+  const items = orderedIds.map((id, sort_order) => ({ id, sort_order }));
+  await api('/api/links/reorder', {
+    method: 'PATCH',
+    body: JSON.stringify({ items }),
+  });
+}
+
+async function persistCategoryOrder(orderedIds) {
+  const items = orderedIds.map((id, sort_order) => ({ id, sort_order }));
+  await api('/api/categories/reorder', {
+    method: 'PATCH',
+    body: JSON.stringify({ items }),
+  });
+}
+
 function getFilteredLinks() {
   const q = searchQuery.trim().toLowerCase();
   if (!q) return links;
@@ -238,7 +326,9 @@ async function copyCategoryLinks(cat) {
 
 function renderLinks() {
   const filtered = getFilteredLinks();
+  const reorderable = canReorderLinks();
   $linkList.classList.toggle('list-view', viewMode === 'list');
+  $linkList.classList.toggle('link-list--reorderable', reorderable);
   $linkList.innerHTML = '';
   if (links.length === 0) {
     $linkList.innerHTML = '<li class="empty-state">등록된 링크가 없습니다.<br/>+ 링크 추가로 저장하세요.</li>';
@@ -270,8 +360,12 @@ function renderLinks() {
         `).join('')}
       </div>
     `;
+    const dragHandleHtml = reorderable
+      ? `<button type="button" class="link-drag-handle" draggable="true" title="드래그하여 순서 변경" aria-label="순서 변경">⋮⋮</button>`
+      : '';
     li.innerHTML = isList
       ? `
+      ${dragHandleHtml}
       <div class="${cardClass}" data-link-id="${link.id}">
         ${thumb}
         <div class="body">
@@ -285,6 +379,7 @@ function renderLinks() {
       </div>
     `
       : `
+      ${dragHandleHtml}
       <div class="${cardClass}" data-link-id="${link.id}">
         ${thumb}
         <div class="body">
@@ -340,11 +435,63 @@ function renderLinks() {
     });
     card.addEventListener('click', (e) => {
       if (e.target.closest('.card-menu')) return;
-      if (link.url) {
-        if (typeof chrome !== 'undefined' && chrome.tabs) chrome.tabs.create({ url: link.url });
-        else window.open(link.url, '_blank');
-      }
+      if (e.target.closest('.link-drag-handle')) return;
+      e.stopPropagation();
+      showMemoPanel(link);
     });
+    if (reorderable) {
+      const handle = li.querySelector('.link-drag-handle');
+      if (handle) {
+        handle.addEventListener('click', (e) => e.stopPropagation());
+        handle.addEventListener('dragstart', (e) => {
+          e.stopPropagation();
+          draggedLinkId = link.id;
+          li.classList.add('link-item-dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', String(link.id));
+        });
+        handle.addEventListener('dragend', () => {
+          draggedLinkId = null;
+          li.classList.remove('link-item-dragging');
+          $linkList.querySelectorAll('.link-item-drag-over').forEach((el) => el.classList.remove('link-item-drag-over'));
+        });
+        li.addEventListener('dragover', (e) => {
+          if (draggedLinkId == null) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          $linkList.querySelectorAll('.link-item-drag-over').forEach((el) => {
+            if (el !== li) el.classList.remove('link-item-drag-over');
+          });
+          li.classList.add('link-item-drag-over');
+        });
+        li.addEventListener('dragleave', (e) => {
+          if (!li.contains(e.relatedTarget)) li.classList.remove('link-item-drag-over');
+        });
+        li.addEventListener('drop', async (e) => {
+          if (draggedLinkId == null) return;
+          e.preventDefault();
+          e.stopPropagation();
+          li.classList.remove('link-item-drag-over');
+          const dragId = draggedLinkId;
+          const targetId = link.id;
+          if (dragId === targetId) return;
+          const orderedIds = filtered.map((l) => l.id);
+          const from = orderedIds.indexOf(dragId);
+          let to = orderedIds.indexOf(targetId);
+          if (from === -1 || to === -1) return;
+          const next = [...orderedIds];
+          next.splice(from, 1);
+          if (from < to) to -= 1;
+          next.splice(to, 0, dragId);
+          try {
+            await persistLinkOrder(next);
+            await loadLinks();
+          } catch (err) {
+            alert('순서 저장 실패: ' + (err.message || ''));
+          }
+        });
+      }
+    }
     $linkList.appendChild(li);
     if (imgSrc && imgSrc.includes('localhost')) {
       fetch(imgSrc).then((r) => r.ok && r.blob()).then((blob) => {
@@ -698,6 +845,13 @@ $('workspaceForm').addEventListener('submit', async (e) => {
 
 $('memoPanelClose').addEventListener('click', hideMemoPanel);
 
+document.addEventListener('click', (e) => {
+  const panel = $('memoPanel');
+  if (!panel || !panel.classList.contains('show')) return;
+  if (panel.contains(e.target)) return;
+  hideMemoPanel();
+});
+
 $('editCategoryBtn').addEventListener('click', openCategoryListModal);
 $('editWorkspaceBtn').addEventListener('click', openWorkspaceListModal);
 
@@ -735,12 +889,6 @@ if (workspaceSelectAllEl) {
     workspaceSelectAllEl.indeterminate = false;
   });
 }
-$linkModal.addEventListener('click', (e) => { if (e.target === $linkModal) closeLinkModal(); });
-$categoryListModal.addEventListener('click', (e) => { if (e.target === $categoryListModal) closeCategoryListModal(); });
-$categoryModal.addEventListener('click', (e) => { if (e.target === $categoryModal) closeCategoryModal(); });
-$workspaceListModal.addEventListener('click', (e) => { if (e.target === $workspaceListModal) closeWorkspaceListModal(); });
-$workspaceModal.addEventListener('click', (e) => { if (e.target === $workspaceModal) closeWorkspaceModal(); });
-
 function openSettingsModal() {
   $('apiBaseInput').value = API_BASE;
   $settingsModal.classList.add('show');
@@ -752,7 +900,6 @@ function closeSettingsModal() {
 $('settingsBtn').addEventListener('click', openSettingsModal);
 $('settingsModalClose').addEventListener('click', closeSettingsModal);
 $('settingsFormCancel').addEventListener('click', closeSettingsModal);
-$settingsModal.addEventListener('click', (e) => { if (e.target === $settingsModal) closeSettingsModal(); });
 
 $('settingsForm').addEventListener('submit', async (e) => {
   e.preventDefault();
