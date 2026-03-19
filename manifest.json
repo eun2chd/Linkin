@@ -1,0 +1,29 @@
+{
+    "manifest_version": 3,
+    "name": "Link_in",
+    "version": "1.0",
+    "description": "Link_in - Site parking extension",
+    "permissions": ["activeTab", "tabs"],
+    "host_permissions": ["http://localhost:3000/*"],
+    "content_security_policy": {
+      "extension_pages": "script-src 'self'; object-src 'self'; img-src 'self' data: blob: http://localhost:* https: http:"
+    },
+    "action": {
+      "default_title": "Link_in",
+      "default_icon": {
+        "16": "icons/link.png",
+        "32": "icons/link.png",
+        "48": "icons/link.png",
+        "128": "icons/link.png"
+      }
+    },
+    "background": {
+      "service_worker": "background.js"
+    },
+    "icons": {
+      "16": "icons/link.png",
+      "32": "icons/link.png",
+      "48": "icons/link.png",
+      "128": "icons/link.png"
+    }
+  } 
