@@ -290,6 +290,18 @@ function getFilteredLinks() {
   );
 }
 
+function getLinksGroupedByCategory(linkList) {
+  const byCategory = new Map();
+  for (const link of linkList) {
+    const cid = link.category_id ?? 0;
+    const cname = link.category_name ?? '(미분류)';
+    if (!byCategory.has(cid)) byCategory.set(cid, { categoryId: cid, categoryName: cname, links: [] });
+    byCategory.get(cid).links.push(link);
+  }
+  const order = new Map(categories.map((c, i) => [c.id, i]));
+  return [...byCategory.values()].sort((a, b) => (order.get(a.categoryId) ?? 999) - (order.get(b.categoryId) ?? 999));
+}
+
 function formatLinksForCopy(linkList) {
   return linkList.map((l) => `${l.site_name || '(이름 없음)'} - ${l.url || ''}`).join('\n');
 }
@@ -327,8 +339,10 @@ async function copyCategoryLinks(cat) {
 function renderLinks() {
   const filtered = getFilteredLinks();
   const reorderable = canReorderLinks();
+  const groupByCategory = selectedCategoryId === null;
   $linkList.classList.toggle('list-view', viewMode === 'list');
   $linkList.classList.toggle('link-list--reorderable', reorderable);
+  $linkList.classList.toggle('link-list--grouped', groupByCategory);
   $linkList.innerHTML = '';
   if (links.length === 0) {
     $linkList.innerHTML = '<li class="empty-state">등록된 링크가 없습니다.<br/>+ 링크 추가로 저장하세요.</li>';
@@ -338,7 +352,21 @@ function renderLinks() {
     $linkList.innerHTML = '<li class="empty-state">검색 결과가 없습니다.</li>';
     return;
   }
-  filtered.forEach((link) => {
+  const items = groupByCategory
+    ? getLinksGroupedByCategory(filtered).flatMap((g) => [
+        { type: 'section', categoryName: g.categoryName },
+        ...g.links.map((link) => ({ type: 'link', link })),
+      ])
+    : filtered.map((link) => ({ type: 'link', link }));
+  items.forEach((item) => {
+    if (item.type === 'section') {
+      const li = document.createElement('li');
+      li.className = 'category-section';
+      li.innerHTML = `<div class="category-section-header">${escapeHtml(item.categoryName)}</div>`;
+      $linkList.appendChild(li);
+      return;
+    }
+    const link = item.link;
     const li = document.createElement('li');
     const imgSrc = logoFullUrl(link.site_image);
     const thumb = imgSrc
@@ -558,6 +586,25 @@ function updateLogoPreview(url) {
   if (img) img.addEventListener('error', () => { img.classList.add('thumb-hidden'); });
 }
 
+async function uploadLogoFile(file) {
+  const form = new FormData();
+  form.append('image', file);
+  const res = await fetch(API_BASE + '/api/upload', { method: 'POST', body: form });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  const fullUrl = data.url?.startsWith('http') ? data.url : (API_BASE + (data.url?.startsWith('/') ? data.url : '/' + (data.url || '')));
+  $('siteImage').value = fullUrl;
+  updateLogoPreview(fullUrl);
+}
+
+function handleLogoFile(file) {
+  if (!file || !file.type.startsWith('image/')) {
+    alert('이미지 파일만 올릴 수 있습니다.');
+    return;
+  }
+  uploadLogoFile(file).catch((err) => alert('업로드 실패: ' + err.message));
+}
+
 function openLinkModal(link = null) {
   $('linkModalTitle').textContent = link ? '링크 수정' : '링크 추가';
   $('linkId').value = link ? link.id : '';
@@ -667,6 +714,37 @@ $('logoClearBtn').addEventListener('click', () => {
   updateLogoPreview('');
   const hint = $('logoDropHint');
   if (hint) hint.style.display = '';
+});
+
+const logoDropZone = $('logoDropZone');
+if (logoDropZone) {
+  logoDropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    logoDropZone.classList.add('logo-drop-over');
+  });
+  logoDropZone.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    logoDropZone.classList.remove('logo-drop-over');
+  });
+  logoDropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    logoDropZone.classList.remove('logo-drop-over');
+    const file = e.dataTransfer.files[0];
+    handleLogoFile(file);
+  });
+}
+
+$('logoSelectFileBtn').addEventListener('click', () => {
+  const input = $('logoFileInput');
+  if (input) input.click();
+});
+$('logoFileInput').addEventListener('change', (e) => {
+  const file = e.target.files?.[0];
+  if (file) handleLogoFile(file);
+  e.target.value = '';
 });
 
 $('linkForm').addEventListener('submit', async (e) => {

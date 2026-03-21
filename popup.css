@@ -422,6 +422,27 @@ body {
 .link-list > li {
   min-width: 0;
 }
+.link-list.link-list--grouped > li.category-section {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.link-list .category-section-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 12px 0 8px;
+  margin: 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+.link-list.link-list--grouped > li.category-section:first-child .category-section-header {
+  padding-top: 0;
+}
+.link-list.list-view .category-section-header {
+  padding: 10px 12px 6px;
+  border-bottom-color: #e9ecef;
+}
 
 /* 드래그로 정렬 (카테고리 선택 + 검색 없을 때) */
 .link-list.link-list--reorderable:not(.list-view) > li:not(.empty-state) {
@@ -491,9 +512,9 @@ body {
 .link-card {
   display: flex;
   flex-direction: row;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  align-items: stretch;
+  gap: 12px;
+  padding: 12px 14px;
   background: #fff;
   border-radius: 8px;
   border: 1px solid #e9ecef;
@@ -511,6 +532,7 @@ body {
 .link-card .card-menu {
   position: relative;
   flex-shrink: 0;
+  align-self: center;
 }
 .link-card .card-menu-btn {
   width: 32px;
@@ -570,12 +592,13 @@ body {
 }
 .link-card .thumb,
 .link-card .thumb-placeholder {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  min-height: 36px;
-  border-radius: 6px;
+  width: 56px;
+  height: 56px;
+  min-width: 56px;
+  min-height: 56px;
+  border-radius: 8px;
   flex-shrink: 0;
+  align-self: center;
 }
 .link-card .thumb {
   background: #f0f0f0;
@@ -590,7 +613,7 @@ body {
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 0.9rem;
+  font-size: 1.25rem;
   font-weight: 700;
 }
 .link-card .thumb-placeholder-fallback {
@@ -603,35 +626,37 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: 72px;
+  gap: 4px;
+  min-height: 0;
+  align-self: stretch;
+  padding: 2px 0;
 }
 .link-card .name {
   font-weight: 600;
-  font-size: 12px;
-  margin: 0 0 2px;
+  font-size: 14px;
+  margin: 0;
   color: #111;
-  line-height: 1.3;
+  line-height: 1.35;
   display: -webkit-box;
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 .link-card .desc {
-  font-size: 11px;
+  font-size: 12px;
   color: #6b7280;
   margin: 0;
-  line-height: 1.3;
+  line-height: 1.35;
   display: -webkit-box;
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  height: 1.3em;
 }
 .link-card .note {
-  font-size: 10px;
+  font-size: 11px;
   color: #9ca3af;
-  margin: 2px 0 0;
-  line-height: 1.3;
+  margin: 0;
+  line-height: 1.35;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -851,16 +876,19 @@ body {
   color: #059669;
 }
 
-/* 메모 하단 패널 */
+/* 메모 패널: 스크롤 위치와 관계없이 화면에 고정 (네비게이션처럼) */
 .memo-panel {
   display: none;
-  flex-shrink: 0;
-  background: #f8f9fa;
-  border-top: 1px solid #e9ecef;
-  padding: 12px 20px 16px;
-  height: 380px;
-  min-height: 380px;
-  max-height: 50vh;
+  position: fixed;
+  top: 56px;
+  right: 0;
+  bottom: 30px;
+  width: 280px;
+  z-index: 50;
+  background: #fff;
+  border-left: 1px solid #e9ecef;
+  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.06);
+  padding: 12px 16px 16px;
   flex-direction: column;
 }
 .memo-panel.show {
