@@ -1,9 +1,23 @@
+@font-face {
+  font-family: 'Pretendard';
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+  src: url('fonts/Pretendard-SemiBold.woff2') format('woff2');
+}
 * {
   box-sizing: border-box;
 }
+html,
+body,
+input,
+button,
+select,
+textarea {
+  font-family: 'Pretendard', 'Segoe UI', 'Malgun Gothic', sans-serif;
+}
 body {
   margin: 0;
-  font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
   font-size: 13px;
   color: #111;
   background: #fff;
@@ -14,17 +28,22 @@ body {
 /* ----- 레이아웃: 사이드바 + 메인 ----- */
 .app-layout {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
 }
 .sidebar {
   width: 200px;
   min-width: 200px;
+  min-height: 0;
   background: #f8f9fa;
   border-right: 1px solid #e9ecef;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 .sidebar-header {
+  flex-shrink: 0;
   padding: 16px;
   border-bottom: 1px solid #e9ecef;
 }
@@ -36,6 +55,7 @@ body {
 }
 .sidebar-nav {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 12px 0;
 }
@@ -602,7 +622,7 @@ body {
 }
 .link-card .thumb {
   background: #f0f0f0;
-  object-fit: cover;
+  object-fit: contain;
 }
 .thumb-hidden {
   display: none;
@@ -707,7 +727,7 @@ body {
 }
 .link-row .thumb {
   background: #f0f0f0;
-  object-fit: cover;
+  object-fit: contain;
 }
 .link-row .thumb-placeholder {
   background: #111;
@@ -1052,7 +1072,6 @@ form {
   border: 1px solid #d1d5db;
   border-radius: 8px;
   font-size: 13px;
-  font-family: inherit;
 }
 .logo-upload-area {
   margin-top: 4px;

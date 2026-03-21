@@ -4,9 +4,14 @@
     "version": "1.0",
     "description": "Link_in - Site parking extension",
     "permissions": ["activeTab", "tabs", "storage"],
-    "host_permissions": ["http://localhost:3000/*", "http://*:3000/*"],
+    "host_permissions": [
+      "http://localhost:3000/*",
+      "http://*:3000/*",
+      "http://218.235.89.145:50001/*",
+      "http://*:50001/*"
+    ],
     "content_security_policy": {
-      "extension_pages": "script-src 'self'; object-src 'self'; img-src 'self' data: blob: http://localhost:* https: http:"
+      "extension_pages": "script-src 'self'; object-src 'self'; img-src 'self' data: blob: http://localhost:* https: http:; font-src 'self'"
     },
     "action": {
       "default_title": "Link_in",
