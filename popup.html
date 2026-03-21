@@ -43,24 +43,27 @@
     </aside>
 
     <main class="main">
-      <header class="topbar">
-        <div class="topbar-search-wrap">
-          <input type="text" id="searchInput" class="topbar-search" placeholder="검색… (Ctrl+K)" autocomplete="off" />
-        </div>
-        <div class="topbar-actions">
-          <div class="view-toggle" role="group" aria-label="보기 전환">
-            <button type="button" class="btn-icon" id="viewGridBtn" title="그리드 보기">⊞</button>
-            <button type="button" class="btn-icon" id="viewListBtn" title="리스트 보기">≡</button>
+      <!-- 링크 뷰 -->
+      <div class="page-view" id="linkPageView">
+        <header class="topbar">
+          <div class="topbar-search-wrap">
+            <input type="text" id="searchInput" class="topbar-search" placeholder="검색… (Ctrl+K)" autocomplete="off" />
           </div>
-          <button type="button" class="btn btn-sm" id="copyLinksBtn">복사</button>
-          <button type="button" class="btn btn-sm btn-primary" id="addLinkBtn">+ 링크 추가</button>
+          <div class="topbar-actions">
+            <div class="view-toggle" role="group" aria-label="보기 전환">
+              <button type="button" class="btn-icon" id="viewGridBtn" title="그리드 보기">⊞</button>
+              <button type="button" class="btn-icon" id="viewListBtn" title="리스트 보기">≡</button>
+            </div>
+            <button type="button" class="btn btn-sm" id="copyLinksBtn">복사</button>
+            <button type="button" class="btn btn-sm btn-primary" id="addLinkBtn">+ 링크 추가</button>
+            <button type="button" class="btn btn-sm" id="explorerBtn" title="폴더 탐색기">📁 탐색기</button>
+          </div>
+        </header>
+        <div class="main-content">
+          <h2 class="main-title" id="currentCategoryTitle">전체 링크</h2>
+          <ul class="link-list" id="linkList"></ul>
         </div>
-      </header>
-      <div class="main-content">
-        <h2 class="main-title" id="currentCategoryTitle">전체 링크</h2>
-        <ul class="link-list" id="linkList"></ul>
-      </div>
-      <div class="memo-panel" id="memoPanel">
+        <div class="memo-panel" id="memoPanel">
         <div class="memo-panel-header">
           <div class="memo-panel-header-left">
             <span class="memo-panel-title" id="memoPanelTitle"></span>
@@ -69,8 +72,26 @@
           <button type="button" class="memo-panel-close" id="memoPanelClose" title="닫기">&times;</button>
         </div>
         <div class="memo-panel-body" id="memoPanelBody"></div>
+        </div>
+        <footer class="api-status" id="apiStatus">서버 연결 중...</footer>
       </div>
-      <footer class="api-status" id="apiStatus">서버 연결 중...</footer>
+
+      <!-- 탐색기 뷰 (Miller Columns) -->
+      <div class="page-view page-view--hidden" id="explorerPageView">
+        <header class="topbar topbar--explorer">
+          <h2 class="explorer-title">폴더 탐색기</h2>
+          <button type="button" class="btn btn-sm" id="backToLinksBtn">← 링크인</button>
+        </header>
+        <div class="explorer-content">
+          <div class="miller-columns-wrap">
+            <div class="miller-columns" id="millerColumns"></div>
+            <aside class="explorer-preview" id="explorerPreview">
+              <p class="explorer-preview-empty" id="explorerPreviewEmpty">파일을 선택하면 미리보기가 표시됩니다.</p>
+              <div class="explorer-preview-content" id="explorerPreviewContent"></div>
+            </aside>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 

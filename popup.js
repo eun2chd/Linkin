@@ -10,6 +10,8 @@ let draggedLinkId = null;
 let draggedCategoryId = null;
 
 const $ = (id) => document.getElementById(id);
+const $linkPageView = $('linkPageView');
+const $explorerPageView = $('explorerPageView');
 const $categoryList = $('categoryList');
 const $linkList = $('linkList');
 const $workspaceList = $('workspaceList');
@@ -780,6 +782,190 @@ $('addLinkBtn').addEventListener('click', () => {
   }
   openLinkModal();
 });
+
+let explorerFiles = [];
+let explorerTree = null;
+let explorerSelectionPath = []; // [ { name, fullPath, isFolder, file } ]
+
+function buildFileTree(files) {
+  const root = { children: new Map(), files: [] };
+  const pathSep = /[\\/]+/;
+  for (const f of files) {
+    const fp = (f.full_path || f.name || '').trim();
+    if (!fp) continue;
+    const parts = fp.split(pathSep).filter(Boolean);
+    if (parts.length === 0) continue;
+    let curr = root;
+    for (let i = 0; i < parts.length; i++) {
+      const name = parts[i];
+      const isLast = i === parts.length - 1;
+      const fullPath = parts.slice(0, i + 1).join('\\');
+      if (!curr.children.has(name)) {
+        curr.children.set(name, {
+          name,
+          fullPath,
+          isFolder: isLast ? !!f.is_folder : true,
+          file: isLast && !f.is_folder ? f : null,
+          children: new Map(),
+          files: [],
+        });
+      }
+      curr = curr.children.get(name);
+      if (isLast && !f.is_folder) curr.file = f;
+    }
+  }
+  return root;
+}
+
+function getChildrenAtPath(tree, pathSegments) {
+  let curr = tree;
+  for (const seg of pathSegments) {
+    if (!curr || !curr.children) return [];
+    curr = curr.children.get(seg);
+  }
+  if (!curr) return [];
+  const children = [];
+  for (const [name, node] of curr.children) {
+    children.push(node);
+  }
+  children.sort((a, b) => {
+    const af = a.isFolder || a.children?.size ? 1 : 0;
+    const bf = b.isFolder || b.children?.size ? 1 : 0;
+    if (bf !== af) return bf - af;
+    return String(a.name || '').localeCompare(b.name || '');
+  });
+  return children;
+}
+
+function getRoots(tree) {
+  if (!tree || !tree.children) return [];
+  return getChildrenAtPath(tree, []);
+}
+
+function renderMillerColumns() {
+  const container = $('millerColumns');
+  const previewEmpty = $('explorerPreviewEmpty');
+  const previewContent = $('explorerPreviewContent');
+  if (!container) return;
+
+  container.innerHTML = '';
+  if (!explorerTree) {
+    return;
+  }
+
+  const pathSoFar = [];
+  const maxCols = Math.max(1, explorerSelectionPath.length + 1);
+
+  for (let colIdx = 0; colIdx < maxCols; colIdx++) {
+    const col = document.createElement('div');
+    col.className = 'miller-column';
+    const header = document.createElement('div');
+    header.className = 'miller-column-header';
+    header.textContent = colIdx === 0 ? '위치' : pathSoFar[pathSoFar.length - 1] || '';
+    col.appendChild(header);
+
+    const list = document.createElement('div');
+    list.className = 'miller-column-list';
+    const items = colIdx === 0 ? getRoots(explorerTree) : getChildrenAtPath(explorerTree, pathSoFar);
+
+    items.forEach((node) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'miller-column-item';
+      const icon = node.isFolder || (node.children && node.children.size) ? '📁' : '📄';
+      const active =
+        explorerSelectionPath[colIdx] && explorerSelectionPath[colIdx].name === node.name;
+      if (active) btn.classList.add('active');
+      btn.innerHTML = `
+        <span class="miller-column-item-icon">${icon}</span>
+        <span class="miller-column-item-name">${escapeHtml(node.name)}</span>
+      `;
+      btn.addEventListener('click', () => {
+        const newPath = pathSoFar.slice(0, colIdx).concat([node]);
+        explorerSelectionPath = newPath;
+        renderMillerColumns();
+        if (!node.isFolder && node.file) {
+          previewEmpty.style.display = 'none';
+          previewContent.style.display = '';
+          previewContent.innerHTML = `
+            <div class="preview-filename">${escapeHtml(node.name)}</div>
+            <div class="meta-row"><span class="meta-label">경로</span><span class="meta-value">${escapeHtml(node.fullPath || '')}</span></div>
+            <div class="meta-row"><span class="meta-label">크기</span><span class="meta-value">${formatFileSize(node.file?.size)}</span></div>
+            <div class="meta-row"><span class="meta-label">수정일</span><span class="meta-value">${formatFileDate(node.file?.modified)}</span></div>
+          `;
+        } else if (node.isFolder) {
+          previewEmpty.style.display = '';
+          previewContent.style.display = 'none';
+          previewContent.innerHTML = '';
+        }
+      });
+      list.appendChild(btn);
+    });
+
+    col.appendChild(list);
+    container.appendChild(col);
+
+    const selected = explorerSelectionPath[colIdx];
+    if (selected) pathSoFar.push(selected.name);
+  }
+
+  if (explorerSelectionPath.length === 0) {
+    previewEmpty.style.display = '';
+    previewContent.style.display = 'none';
+    previewContent.innerHTML = '';
+  }
+}
+
+function formatFileSize(bytes) {
+  if (bytes == null || bytes === '') return '-';
+  const n = Number(bytes);
+  if (!Number.isFinite(n)) return '-';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  if (n < 1024 * 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  return (n / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+}
+
+function formatFileDate(d) {
+  if (!d) return '-';
+  try {
+    const date = new Date(d);
+    return isNaN(date.getTime()) ? '-' : date.toLocaleString('ko-KR');
+  } catch {
+    return '-';
+  }
+}
+
+async function loadExplorerFiles() {
+  try {
+    explorerFiles = await api('/api/files');
+    explorerTree = buildFileTree(explorerFiles);
+    explorerSelectionPath = [];
+    renderMillerColumns();
+  } catch (e) {
+    const container = $('millerColumns');
+    if (container) container.innerHTML = '<div class="explorer-error">파일 목록을 불러올 수 없습니다.</div>';
+    console.error('loadExplorerFiles', e);
+  }
+}
+
+function showExplorerPage() {
+  hideMemoPanel();
+  const sidebarEl = document.querySelector('.sidebar');
+  if (sidebarEl) sidebarEl.classList.add('sidebar--hidden');
+  if ($linkPageView) $linkPageView.classList.add('page-view--hidden');
+  if ($explorerPageView) $explorerPageView.classList.remove('page-view--hidden');
+  loadExplorerFiles();
+}
+function showLinkPage() {
+  const sidebarEl = document.querySelector('.sidebar');
+  if (sidebarEl) sidebarEl.classList.remove('sidebar--hidden');
+  if ($linkPageView) $linkPageView.classList.remove('page-view--hidden');
+  if ($explorerPageView) $explorerPageView.classList.add('page-view--hidden');
+}
+
+$('explorerBtn').addEventListener('click', showExplorerPage);
+$('backToLinksBtn').addEventListener('click', showLinkPage);
 
 if ($searchInput) {
   $searchInput.addEventListener('input', () => {

@@ -242,6 +242,19 @@ app.patch('/api/links/reorder', async (req, res) => {
   }
 });
 
+// /api/files는 /api/links/:id보다 먼저 와야 함 (:id가 "files"를 잡지 않도록)
+app.get('/api/files', async (req, res) => {
+  try {
+    const rows = await query(
+      'SELECT id, full_path, name, size, modified, is_folder FROM files ORDER BY full_path'
+    );
+    res.json(rows || []);
+  } catch (e) {
+    console.error('GET /api/files', e);
+    res.status(500).json({ error: e.message || '파일 목록을 가져오지 못했습니다.' });
+  }
+});
+
 app.get('/api/links/:id', async (req, res) => {
   try {
     const rows = await query(
