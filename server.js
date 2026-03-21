@@ -246,7 +246,7 @@ app.patch('/api/links/reorder', async (req, res) => {
 app.get('/api/files', async (req, res) => {
   try {
     const rows = await query(
-      'SELECT id, full_path, name, size, modified, is_folder FROM files ORDER BY full_path'
+      'SELECT id, full_path, name, size, modified FROM files ORDER BY full_path'
     );
     res.json(rows || []);
   } catch (e) {
