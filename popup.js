@@ -789,11 +789,12 @@ let explorerSelectionPath = []; // [ { name, fullPath, isFolder, file } ]
 
 function buildFileTree(files) {
   const root = { children: new Map(), files: [] };
-  const pathSep = /[\\/]+/;
+  // \ / _ 및 ". " 구분자 (Z:전략기획팀_견적서, Z:전략기획팀. 백업 등, .pdf 확장자는 유지)
+  const pathSep = /[\\/_]+|\.\s+/;
   for (const f of files) {
     const fp = (f.full_path || f.name || '').trim();
     if (!fp) continue;
-    const parts = fp.split(pathSep).filter(Boolean);
+    const parts = fp.split(pathSep).map((p) => p.trim()).filter(Boolean);
     if (parts.length === 0) continue;
     let curr = root;
     for (let i = 0; i < parts.length; i++) {
