@@ -1,10 +1,16 @@
 const mysql = require('mysql2/promise');
 
+const DB_CONNECT_TIMEOUT_MS = Number(process.env.DB_CONNECT_TIMEOUT_MS || 5000);
+const DB_INIT_RETRY_COUNT = Number(process.env.DB_INIT_RETRY_COUNT || 3);
+const DB_INIT_RETRY_DELAY_MS = Number(process.env.DB_INIT_RETRY_DELAY_MS || 2000);
+
 const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
+  host: process.env.DB_HOST || '218.235.89.145',
+  port: Number(process.env.DB_PORT || 50003),
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '1234',
   database: 'link',
+  connectTimeout: DB_CONNECT_TIMEOUT_MS,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
@@ -17,12 +23,43 @@ async function query(sql, params = []) {
   return rows;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function createAdminConnectionWithRetry() {
+  const safeUser = dbConfig.user ? `'${dbConfig.user}'` : '(empty)';
+  console.log(
+    `[DB] connecting to ${dbConfig.host}:${dbConfig.port} as ${safeUser} (timeout=${DB_CONNECT_TIMEOUT_MS}ms, retries=${DB_INIT_RETRY_COUNT})`
+  );
+
+  let lastError;
+  for (let attempt = 1; attempt <= DB_INIT_RETRY_COUNT; attempt += 1) {
+    try {
+      console.log(`[DB] connect attempt ${attempt}/${DB_INIT_RETRY_COUNT}`);
+      return await mysql.createConnection({
+        host: dbConfig.host,
+        port: dbConfig.port,
+        user: dbConfig.user,
+        password: dbConfig.password,
+        connectTimeout: DB_CONNECT_TIMEOUT_MS,
+      });
+    } catch (error) {
+      lastError = error;
+      console.error(
+        `[DB] connect failed (attempt ${attempt}/${DB_INIT_RETRY_COUNT}) code=${error.code || 'UNKNOWN'} message=${error.message}`
+      );
+      if (attempt < DB_INIT_RETRY_COUNT) {
+        await sleep(DB_INIT_RETRY_DELAY_MS * attempt);
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 async function initDb() {
-  const conn = await mysql.createConnection({
-    host: dbConfig.host,
-    user: dbConfig.user,
-    password: dbConfig.password,
-  });
+  const conn = await createAdminConnectionWithRetry();
   await conn.query(`
     CREATE DATABASE IF NOT EXISTS link
     DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
