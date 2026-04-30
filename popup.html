@@ -7,6 +7,69 @@
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
+  <!-- 로그인/회원가입 오버레이 -->
+  <div class="auth-overlay" id="authOverlay">
+    <div class="auth-box">
+      <h1 class="auth-logo">Link_in</h1>
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab active" id="authTabLogin">로그인</button>
+        <button type="button" class="auth-tab" id="authTabSignup">회원가입</button>
+      </div>
+      <!-- 로그인 폼 -->
+      <form id="loginForm" class="auth-form">
+        <div class="form-group">
+          <label for="loginUsername">아이디</label>
+          <input type="text" id="loginUsername" required placeholder="아이디" autocomplete="username" />
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">비밀번호</label>
+          <input type="password" id="loginPassword" required placeholder="비밀번호" autocomplete="current-password" />
+        </div>
+        <label class="checkbox-row">
+          <input type="checkbox" id="rememberUsername" />
+          <span>아이디 저장</span>
+        </label>
+        <p class="auth-error" id="loginError"></p>
+        <button type="submit" class="btn btn-primary btn-block">로그인</button>
+      </form>
+      <!-- 서버 주소 설정 -->
+      <div class="auth-server-row">
+        <button type="button" class="auth-server-toggle" id="authServerToggle">⚙ 서버 주소</button>
+        <div class="auth-server-wrap" id="authServerWrap" style="display:none">
+          <input type="text" id="authApiBaseInput" class="auth-server-input" placeholder="http://localhost:3000" />
+          <button type="button" class="btn btn-sm" id="authApiBaseSave">저장</button>
+        </div>
+      </div>
+      <!-- 회원가입 폼 -->
+      <form id="signupForm" class="auth-form" style="display:none">
+        <div class="form-group">
+          <label for="signupName">이름 *</label>
+          <input type="text" id="signupName" required placeholder="이름" />
+        </div>
+        <div class="form-group">
+          <label for="signupUsername">아이디 * (3자 이상)</label>
+          <input type="text" id="signupUsername" required placeholder="아이디" autocomplete="username" />
+        </div>
+        <div class="form-group">
+          <label for="signupPassword">비밀번호 * (4자 이상)</label>
+          <input type="password" id="signupPassword" required placeholder="비밀번호" autocomplete="new-password" />
+        </div>
+        <div class="form-group">
+          <label for="signupDepartment">부서</label>
+          <select id="signupDepartment">
+            <option value="">부서 선택 (선택)</option>
+            <option value="전략기획부">전략기획부</option>
+            <option value="설계부">설계부</option>
+            <option value="기술부">기술부</option>
+            <option value="교육부">교육부</option>
+          </select>
+        </div>
+        <p class="auth-error" id="signupError"></p>
+        <button type="submit" class="btn btn-primary btn-block">회원가입</button>
+      </form>
+    </div>
+  </div>
+
   <div class="app-layout">
     <aside class="sidebar">
       <div class="sidebar-header">
@@ -39,6 +102,18 @@
           <span class="sidebar-footer-icon" aria-hidden="true">‹</span>
           <span class="sidebar-footer-label">접기</span>
         </button>
+        <!-- 사용자 구분선 + 카드 -->
+        <div class="sidebar-user-divider"></div>
+        <div class="sidebar-user-card">
+          <button type="button" class="sidebar-user-info" id="profileBtn" title="내 정보 수정">
+            <span class="sidebar-user-avatar">👤</span>
+            <div class="sidebar-user-text">
+              <span class="sidebar-user-name" id="userDisplayName">-</span>
+              <span class="sidebar-user-dept" id="userDisplayDept"></span>
+            </div>
+          </button>
+          <button type="button" class="sidebar-logout-btn" id="logoutBtn" title="로그아웃">↩</button>
+        </div>
       </div>
     </aside>
 
@@ -50,6 +125,10 @@
             <input type="text" id="searchInput" class="topbar-search" placeholder="검색… (Ctrl+K)" autocomplete="off" />
           </div>
           <div class="topbar-actions">
+            <div class="topbar-user-badge" id="topbarUserBadge">
+              <span class="topbar-user-name" id="topbarUserName"></span>
+              <span class="topbar-user-dept" id="topbarUserDept"></span>
+            </div>
             <div class="view-toggle" role="group" aria-label="보기 전환">
               <button type="button" class="btn-icon" id="viewGridBtn" title="그리드 보기">⊞</button>
               <button type="button" class="btn-icon" id="viewListBtn" title="리스트 보기">≡</button>
@@ -80,7 +159,21 @@
       <div class="page-view page-view--hidden" id="explorerPageView">
         <header class="topbar topbar--explorer">
           <h2 class="explorer-title">폴더 탐색기</h2>
-          <button type="button" class="btn btn-sm" id="backToLinksBtn">← 링크인</button>
+          <div class="explorer-header-actions">
+            <span class="explorer-scan-status" id="explorerScanStatus"></span>
+            <input type="text" id="explorerSearchInput" class="explorer-search-input" placeholder="파일명 검색 (최소 2글자)" autocomplete="off" />
+            <button type="button" class="btn btn-sm" id="explorerSearchBtn" title="파일명 검색">검색</button>
+            <button type="button" class="btn btn-sm" id="explorerRecentBtn" title="최근 수정 파일">최근 파일</button>
+            <button type="button" class="btn btn-sm" id="explorerFavoritesBtn" title="즐겨찾기 목록">즐겨찾기</button>
+            <button type="button" class="btn btn-sm" id="explorerBrowseBtn" title="기존 탐색기로 복귀">탐색으로</button>
+            <button type="button" class="btn btn-sm" id="scanCsvBtn" title="planningList.csv 임포트">CSV 임포트</button>
+            <button type="button" class="btn btn-sm" id="scanDiskBtn" title="Z:\ 직접 스캔">디스크 스캔</button>
+            <button type="button" class="btn btn-sm" id="backToLinksBtn">← 링크인</button>
+            <div class="topbar-user-badge explorer-user-badge" id="explorerUserBadge">
+              <span class="topbar-user-name" id="explorerUserName"></span>
+              <span class="topbar-user-dept" id="explorerUserDept"></span>
+            </div>
+          </div>
         </header>
         <div class="explorer-content">
           <div class="miller-columns-wrap">
@@ -182,6 +275,13 @@
           <label for="categoryName">카테고리 이름 *</label>
           <input type="text" id="categoryName" required placeholder="예: 개발" />
         </div>
+        <div class="form-group">
+          <label class="checkbox-row">
+            <input type="checkbox" id="categoryIsShared" />
+            <span>전체 공유 카테고리</span>
+          </label>
+          <p class="form-hint">체크하면 모든 사용자에게 표시됩니다.</p>
+        </div>
         <div class="form-actions">
           <button type="button" class="btn" id="categoryFormCancel">취소</button>
           <button type="submit" class="btn btn-primary" id="categorySubmitBtn">추가</button>
@@ -251,6 +351,52 @@
         </div>
         <div class="form-actions">
           <button type="button" class="btn" id="settingsFormCancel">취소</button>
+          <button type="submit" class="btn btn-primary">저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 내 정보 수정 모달 -->
+  <div class="modal" id="profileModal">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h3>내 정보 수정</h3>
+        <button type="button" class="modal-close" id="profileModalClose">&times;</button>
+      </div>
+      <form id="profileForm">
+        <div class="form-group">
+          <label>아이디</label>
+          <input type="text" id="profileUsername" disabled style="background:#f3f4f6;color:#6b7280" />
+        </div>
+        <div class="form-group">
+          <label for="profileName">이름</label>
+          <input type="text" id="profileName" placeholder="이름" />
+        </div>
+        <div class="form-group">
+          <label for="profileDepartment">부서</label>
+          <select id="profileDepartment">
+            <option value="">부서 선택</option>
+            <option value="전략기획부">전략기획부</option>
+            <option value="설계부">설계부</option>
+            <option value="기술부">기술부</option>
+            <option value="교육부">교육부</option>
+          </select>
+        </div>
+        <div class="form-divider"></div>
+        <p class="form-hint" style="margin-bottom:8px">비밀번호 변경 (선택 — 입력하지 않으면 변경 안 됨)</p>
+        <div class="form-group">
+          <label for="profileCurrentPassword">현재 비밀번호</label>
+          <input type="password" id="profileCurrentPassword" placeholder="현재 비밀번호" autocomplete="current-password" />
+        </div>
+        <div class="form-group">
+          <label for="profileNewPassword">새 비밀번호</label>
+          <input type="password" id="profileNewPassword" placeholder="새 비밀번호 (4자 이상)" autocomplete="new-password" />
+        </div>
+        <p class="auth-error" id="profileError"></p>
+        <p class="profile-success" id="profileSuccess"></p>
+        <div class="form-actions">
+          <button type="button" class="btn" id="profileFormCancel">취소</button>
           <button type="submit" class="btn btn-primary">저장</button>
         </div>
       </form>

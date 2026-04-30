@@ -1,0 +1,4 @@
+node_modules/
+*.csv
+*.xlsx
+csv_temp/

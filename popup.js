@@ -1,4 +1,6 @@
 let API_BASE = 'http://localhost:3000';
+let authToken = null;
+let currentUser = null;
 let categories = [];
 let links = [];
 let workspaces = [];
@@ -41,13 +43,43 @@ function setApiBaseToStorage(url) {
   });
 }
 
+function getAuthToken() {
+  return new Promise((resolve) => {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get(['authToken'], (r) => resolve(r.authToken || null));
+    } else resolve(localStorage.getItem('authToken'));
+  });
+}
+
+function setAuthToken(token) {
+  return new Promise((resolve) => {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({ authToken: token }, resolve);
+    } else { localStorage.setItem('authToken', token); resolve(); }
+  });
+}
+
+function clearAuthToken() {
+  return new Promise((resolve) => {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.remove(['authToken'], resolve);
+    } else { localStorage.removeItem('authToken'); resolve(); }
+  });
+}
+
 async function api(path, options = {}) {
   try {
-    const res = await fetch(API_BASE + path, {
-      headers: { 'Content-Type': 'application/json', ...options.headers },
-      ...options,
-    });
+    const headers = { 'Content-Type': 'application/json', ...options.headers };
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    const res = await fetch(API_BASE + path, { headers, ...options });
     const data = await res.json().catch(() => ({}));
+    if (res.status === 401) {
+      authToken = null;
+      currentUser = null;
+      await clearAuthToken();
+      showAuthScreen('login');
+      throw new Error(data?.error || '인증이 만료되었습니다. 다시 로그인해 주세요.');
+    }
     if (!res.ok) {
       const msg = data?.error || (res.status === 409 ? '이미 같은 주소의 링크가 저장되어 있습니다.' : res.statusText);
       throw new Error(msg);
@@ -63,6 +95,86 @@ function setApiStatus(ok, message) {
   $apiStatus.textContent = message || (ok ? '연결됨' : `서버 연결 실패 (${API_BASE} 확인)`);
   $apiStatus.classList.toggle('error', !ok);
   $apiStatus.classList.toggle('ok', ok);
+}
+
+function showAuthScreen(tab = 'login') {
+  const overlay = $('authOverlay');
+  if (overlay) overlay.classList.add('show');
+  switchAuthTab(tab);
+  const saved = localStorage.getItem('savedUsername');
+  if (saved) {
+    const el = $('loginUsername');
+    const cb = $('rememberUsername');
+    if (el) el.value = saved;
+    if (cb) cb.checked = true;
+  }
+  if ($authApiBaseInput) $authApiBaseInput.value = API_BASE;
+}
+
+function hideAuthScreen() {
+  const overlay = $('authOverlay');
+  if (overlay) overlay.classList.remove('show');
+}
+
+function switchAuthTab(tab) {
+  const loginForm = $('loginForm');
+  const signupForm = $('signupForm');
+  const loginTab = $('authTabLogin');
+  const signupTab = $('authTabSignup');
+  if (!loginForm || !signupForm) return;
+  if (tab === 'login') {
+    loginForm.style.display = '';
+    signupForm.style.display = 'none';
+    if (loginTab) loginTab.classList.add('active');
+    if (signupTab) signupTab.classList.remove('active');
+  } else {
+    loginForm.style.display = 'none';
+    signupForm.style.display = '';
+    if (loginTab) loginTab.classList.remove('active');
+    if (signupTab) signupTab.classList.add('active');
+  }
+}
+
+function updateUserDisplay() {
+  if (!currentUser) return;
+  const nameEl = $('userDisplayName');
+  const deptEl = $('userDisplayDept');
+  const topNameEl = $('topbarUserName');
+  const topDeptEl = $('topbarUserDept');
+  const explorerNameEl = $('explorerUserName');
+  const explorerDeptEl = $('explorerUserDept');
+  const name = currentUser.name || currentUser.username || '-';
+  const dept = currentUser.department || '';
+  if (nameEl) nameEl.textContent = name;
+  if (deptEl) deptEl.textContent = dept;
+  if (topNameEl) topNameEl.textContent = name;
+  if (topDeptEl) topDeptEl.textContent = dept;
+  if (explorerNameEl) explorerNameEl.textContent = name;
+  if (explorerDeptEl) explorerDeptEl.textContent = dept;
+  updateExplorerAdminControls();
+}
+
+async function logout() {
+  await clearAuthToken();
+  authToken = null;
+  currentUser = null;
+  categories = [];
+  links = [];
+  workspaces = [];
+  selectedCategoryId = null;
+  $categoryList.innerHTML = '';
+  $linkList.innerHTML = '';
+  $workspaceList.innerHTML = '';
+  updateExplorerAdminControls();
+  showAuthScreen('login');
+}
+
+async function loadAppData() {
+  const ok = await loadCategories();
+  if (ok) loadLinks();
+  else $currentCategoryTitle.textContent = '전체 링크';
+  await loadWorkspaces();
+  setViewMode(viewMode);
 }
 
 async function loadCategories() {
@@ -108,10 +220,15 @@ function renderCategories() {
   categories.forEach((cat) => {
     const li = document.createElement('li');
     const activeClass = selectedCategoryId === cat.id ? 'active' : '';
-    const handleHtml = canReorderCategories
+    const handleHtml = (canReorderCategories && cat.is_mine !== false)
       ? `<button type="button" class="category-drag-handle" draggable="true" title="드래그하여 순서 변경" aria-label="순서 변경">⋮⋮</button>`
       : '';
-    li.innerHTML = `${handleHtml}<button type="button" class="cat-btn ${activeClass}" data-id="${cat.id}">${escapeHtml(cat.name)}</button>`;
+    const sharedBadge = cat.is_shared
+      ? (cat.is_mine !== false
+          ? `<span class="cat-shared-badge cat-shared-badge--mine" title="전체 공유 중">공유중</span>`
+          : `<span class="cat-shared-badge" title="${escapeAttr(cat.shared_by_name || '')}님이 전체 공유">${escapeHtml(cat.shared_by_name || '')} 공유</span>`)
+      : '';
+    li.innerHTML = `${handleHtml}<button type="button" class="cat-btn ${activeClass}" data-id="${cat.id}">${escapeHtml(cat.name)}${sharedBadge}</button>`;
     const catBtn = li.querySelector('.cat-btn');
     catBtn.addEventListener('click', () => {
       selectedCategoryId = cat.id;
@@ -237,18 +354,26 @@ function renderCategoryListModalContent() {
   categories.forEach((cat) => {
     const li = document.createElement('li');
     li.className = 'category-edit-item';
+    const sharedBadge = cat.is_shared ? '<span class="category-badge-shared">공유</span>' : '';
+    const isOther = cat.is_shared && cat.is_mine === false;
+    const sharedBy = isOther
+      ? `<span class="category-shared-by">${escapeHtml(cat.shared_by_name || '')}님이 전체 공유한 카테고리</span>`
+      : '';
     li.innerHTML = `
-      <span class="category-edit-name">${escapeHtml(cat.name)}</span>
+      <span class="category-edit-name">${escapeHtml(cat.name)}${sharedBadge}${sharedBy}</span>
       <div class="category-edit-actions">
-        <button type="button" class="btn btn-sm" data-action="copy" title="주소·사이트명 복사">복사</button>
-        <button type="button" class="btn btn-sm btn-edit" data-action="edit">수정</button>
-        <button type="button" class="btn btn-sm btn-danger" data-action="delete">삭제</button>
+        ${!isOther ? `<button type="button" class="btn btn-sm" data-action="copy" title="주소·사이트명 복사">복사</button>` : ''}
+        ${!isOther ? `<button type="button" class="btn btn-sm btn-edit" data-action="edit">수정</button>` : ''}
+        ${!isOther ? `<button type="button" class="btn btn-sm btn-danger" data-action="delete">삭제</button>` : ''}
       </div>
     `;
-    li.querySelector('[data-action="copy"]').addEventListener('click', () => copyCategoryLinks(cat));
-    li.querySelector('[data-action="edit"]').addEventListener('click', () => openCategoryModal(cat));
-    li.querySelector('[data-action="delete"]').addEventListener('click', () => {
-      deleteCategory(cat.id);
+    const copyBtn = li.querySelector('[data-action="copy"]');
+    const editBtn = li.querySelector('[data-action="edit"]');
+    const deleteBtn = li.querySelector('[data-action="delete"]');
+    if (copyBtn) copyBtn.addEventListener('click', () => copyCategoryLinks(cat));
+    if (editBtn) editBtn.addEventListener('click', () => openCategoryModal(cat));
+    if (deleteBtn) deleteBtn.addEventListener('click', async () => {
+      await deleteCategory(cat.id);
       if ($categoryListModal.classList.contains('show')) renderCategoryListModalContent();
     });
     listEl.appendChild(li);
@@ -591,7 +716,9 @@ function updateLogoPreview(url) {
 async function uploadLogoFile(file) {
   const form = new FormData();
   form.append('image', file);
-  const res = await fetch(API_BASE + '/api/upload', { method: 'POST', body: form });
+  const headers = {};
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  const res = await fetch(API_BASE + '/api/upload', { method: 'POST', body: form, headers });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || res.statusText);
   const fullUrl = data.url?.startsWith('http') ? data.url : (API_BASE + (data.url?.startsWith('/') ? data.url : '/' + (data.url || '')));
@@ -665,6 +792,7 @@ function openCategoryModal(cat = null) {
   $('categoryModalTitle').textContent = cat ? '카테고리 수정' : '카테고리 추가';
   $('categoryId').value = cat ? cat.id : '';
   $('categoryName').value = cat ? cat.name : '';
+  $('categoryIsShared').checked = cat ? !!(cat.is_shared) : false;
   $('categorySubmitBtn').textContent = cat ? '수정' : '추가';
   $categoryModal.classList.add('show');
 }
@@ -674,7 +802,11 @@ function closeCategoryModal() {
 }
 
 async function deleteCategory(id) {
-  if (!confirm('이 카테고리를 삭제할까요? 해당 카테고리의 링크도 함께 삭제됩니다.')) return;
+  const cat = categories.find((c) => c.id === id);
+  const catName = cat ? cat.name : '이 카테고리';
+  const isSharedOwn = cat && cat.is_shared && cat.is_mine !== false;
+  const sharedWarning = isSharedOwn ? '\n⚠️ 공유 카테고리입니다. 다른 사용자에게서도 사라집니다.' : '';
+  if (!confirm(`"${catName}" 카테고리를 삭제할까요?\n\n⚠️ 카테고리 안의 링크가 전부 삭제됩니다.${sharedWarning}\n\n이 작업은 되돌릴 수 없습니다.`)) return;
   try {
     await api(`/api/categories/${id}`, { method: 'DELETE' });
     if (selectedCategoryId === id) {
@@ -692,13 +824,14 @@ $('categoryForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const name = $('categoryName').value.trim();
   const id = $('categoryId').value;
+  const is_shared = $('categoryIsShared').checked;
   if (!name) return;
   try {
     if (id) {
-      await api(`/api/categories/${id}`, { method: 'PUT', body: JSON.stringify({ name }) });
+      await api(`/api/categories/${id}`, { method: 'PUT', body: JSON.stringify({ name, is_shared }) });
       if (selectedCategoryId === +id) $currentCategoryTitle.textContent = name;
     } else {
-      await api('/api/categories', { method: 'POST', body: JSON.stringify({ name }) });
+      await api('/api/categories', { method: 'POST', body: JSON.stringify({ name, is_shared }) });
     }
     closeCategoryModal();
     await loadCategories();
@@ -783,138 +916,25 @@ $('addLinkBtn').addEventListener('click', () => {
   openLinkModal();
 });
 
-let explorerFiles = [];
-let explorerTree = null;
-let explorerSelectionPath = []; // [ { name, fullPath, isFolder, file } ]
+// ── Miller Columns (lazy loading, parent_id 기반) ──────────────
+// millerCols: 각 컬럼의 노드 배열
+// millerSelected: 각 컬럼에서 선택된 노드
+let millerCols = [];
+let millerSelected = [];
+let explorerMode = 'browse'; // browse | search | recent | favorites
+let favoriteNodeIds = new Set();
+let rootAccessMap = new Map();
 
-function buildFileTree(files) {
-  const root = { children: new Map(), files: [] };
-  // \ / _ 및 ". " 구분자 (Z:전략기획팀_견적서, Z:전략기획팀. 백업 등, .pdf 확장자는 유지)
-  const pathSep = /[\\/_]+|\.\s+/;
-  for (const f of files) {
-    const fp = (f.full_path || f.name || '').trim();
-    if (!fp) continue;
-    const parts = fp.split(pathSep).map((p) => p.trim()).filter(Boolean);
-    if (parts.length === 0) continue;
-    let curr = root;
-    for (let i = 0; i < parts.length; i++) {
-      const name = parts[i];
-      const isLast = i === parts.length - 1;
-      const fullPath = parts.slice(0, i + 1).join('\\');
-      if (!curr.children.has(name)) {
-        curr.children.set(name, {
-          name,
-          fullPath,
-          isFolder: isLast ? !!f.is_folder : true,
-          file: isLast && !f.is_folder ? f : null,
-          children: new Map(),
-          files: [],
-        });
-      }
-      curr = curr.children.get(name);
-      if (isLast && !f.is_folder) curr.file = f;
-    }
-  }
-  return root;
+function isAdminUser() {
+  return String(currentUser?.username || '').trim().toLowerCase() === 'admin';
 }
 
-function getChildrenAtPath(tree, pathSegments) {
-  let curr = tree;
-  for (const seg of pathSegments) {
-    if (!curr || !curr.children) return [];
-    curr = curr.children.get(seg);
-  }
-  if (!curr) return [];
-  const children = [];
-  for (const [name, node] of curr.children) {
-    children.push(node);
-  }
-  children.sort((a, b) => {
-    const af = a.isFolder || a.children?.size ? 1 : 0;
-    const bf = b.isFolder || b.children?.size ? 1 : 0;
-    if (bf !== af) return bf - af;
-    return String(a.name || '').localeCompare(b.name || '');
-  });
-  return children;
-}
-
-function getRoots(tree) {
-  if (!tree || !tree.children) return [];
-  return getChildrenAtPath(tree, []);
-}
-
-function renderMillerColumns() {
-  const container = $('millerColumns');
-  const previewEmpty = $('explorerPreviewEmpty');
-  const previewContent = $('explorerPreviewContent');
-  if (!container) return;
-
-  container.innerHTML = '';
-  if (!explorerTree) {
-    return;
-  }
-
-  const pathSoFar = [];
-  const maxCols = Math.max(1, explorerSelectionPath.length + 1);
-
-  for (let colIdx = 0; colIdx < maxCols; colIdx++) {
-    const col = document.createElement('div');
-    col.className = 'miller-column';
-    const header = document.createElement('div');
-    header.className = 'miller-column-header';
-    header.textContent = colIdx === 0 ? '위치' : pathSoFar[pathSoFar.length - 1] || '';
-    col.appendChild(header);
-
-    const list = document.createElement('div');
-    list.className = 'miller-column-list';
-    const items = colIdx === 0 ? getRoots(explorerTree) : getChildrenAtPath(explorerTree, pathSoFar);
-
-    items.forEach((node) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'miller-column-item';
-      const icon = node.isFolder || (node.children && node.children.size) ? '📁' : '📄';
-      const active =
-        explorerSelectionPath[colIdx] && explorerSelectionPath[colIdx].name === node.name;
-      if (active) btn.classList.add('active');
-      btn.innerHTML = `
-        <span class="miller-column-item-icon">${icon}</span>
-        <span class="miller-column-item-name">${escapeHtml(node.name)}</span>
-      `;
-      btn.addEventListener('click', () => {
-        const newPath = pathSoFar.slice(0, colIdx).concat([node]);
-        explorerSelectionPath = newPath;
-        renderMillerColumns();
-        if (!node.isFolder && node.file) {
-          previewEmpty.style.display = 'none';
-          previewContent.style.display = '';
-          previewContent.innerHTML = `
-            <div class="preview-filename">${escapeHtml(node.name)}</div>
-            <div class="meta-row"><span class="meta-label">경로</span><span class="meta-value">${escapeHtml(node.fullPath || '')}</span></div>
-            <div class="meta-row"><span class="meta-label">크기</span><span class="meta-value">${formatFileSize(node.file?.size)}</span></div>
-            <div class="meta-row"><span class="meta-label">수정일</span><span class="meta-value">${formatFileDate(node.file?.modified)}</span></div>
-          `;
-        } else if (node.isFolder) {
-          previewEmpty.style.display = '';
-          previewContent.style.display = 'none';
-          previewContent.innerHTML = '';
-        }
-      });
-      list.appendChild(btn);
-    });
-
-    col.appendChild(list);
-    container.appendChild(col);
-
-    const selected = explorerSelectionPath[colIdx];
-    if (selected) pathSoFar.push(selected.name);
-  }
-
-  if (explorerSelectionPath.length === 0) {
-    previewEmpty.style.display = '';
-    previewContent.style.display = 'none';
-    previewContent.innerHTML = '';
-  }
+function updateExplorerAdminControls() {
+  const isAdmin = isAdminUser();
+  const scanCsvBtn = $('scanCsvBtn');
+  const scanDiskBtn = $('scanDiskBtn');
+  if (scanCsvBtn) scanCsvBtn.style.display = isAdmin ? '' : 'none';
+  if (scanDiskBtn) scanDiskBtn.style.display = isAdmin ? '' : 'none';
 }
 
 function formatFileSize(bytes) {
@@ -932,22 +952,400 @@ function formatFileDate(d) {
   try {
     const date = new Date(d);
     return isNaN(date.getTime()) ? '-' : date.toLocaleString('ko-KR');
-  } catch {
-    return '-';
+  } catch { return '-'; }
+}
+
+async function copyText(text) {
+  if (!text) throw new Error('복사할 텍스트가 없습니다.');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+}
+
+async function refreshFavoriteIds() {
+  try {
+    const rows = await api('/api/files/favorites');
+    favoriteNodeIds = new Set(rows.map((r) => Number(r.id)).filter(Number.isFinite));
+  } catch (_) {
+    favoriteNodeIds = new Set();
   }
 }
 
-async function loadExplorerFiles() {
+async function refreshRootAccessMap() {
+  if (!isAdminUser()) {
+    rootAccessMap = new Map();
+    return;
+  }
   try {
-    explorerFiles = await api('/api/files');
-    explorerTree = buildFileTree(explorerFiles);
-    explorerSelectionPath = [];
+    const rows = await api('/api/files/root-access');
+    rootAccessMap = new Map(rows.map((r) => [Number(r.id), r]));
+  } catch (e) {
+    console.error('[Explorer Access] fetch failed', e);
+    rootAccessMap = new Map();
+  }
+}
+
+function getRootAccessInfo(node) {
+  if (!node || !node.is_folder || node.parent_id !== null) return null;
+  return rootAccessMap.get(Number(node.id)) || {
+    id: node.id,
+    access_scope: 'all',
+    access_departments: [],
+  };
+}
+
+function attachNodeActions(node, row) {
+  const copyBtn = row.querySelector('[data-action="copy-path"]');
+  const favBtn = row.querySelector('[data-action="toggle-favorite"]');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        await copyText(node.full_path || node.name || '');
+        copyBtn.textContent = '복사됨';
+        setTimeout(() => { copyBtn.textContent = '경로복사'; }, 900);
+      } catch (err) {
+        alert('복사 실패: ' + (err.message || ''));
+      }
+    });
+  }
+  if (favBtn) {
+    favBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const isFav = favoriteNodeIds.has(Number(node.id));
+      try {
+        if (isFav) {
+          await api(`/api/files/favorites/${node.id}`, { method: 'DELETE' });
+          favoriteNodeIds.delete(Number(node.id));
+        } else {
+          await api('/api/files/favorites', {
+            method: 'POST',
+            body: JSON.stringify({ node_id: node.id }),
+          });
+          favoriteNodeIds.add(Number(node.id));
+        }
+        renderMillerColumns();
+      } catch (err) {
+        alert('즐겨찾기 처리 실패: ' + (err.message || ''));
+      }
+    });
+  }
+}
+
+function attachRootAccessActions(node, row) {
+  const saveBtn = row.querySelector('[data-action="save-root-access"]');
+  const scopeSel = row.querySelector('[data-role="root-access-scope"]');
+  const deptInput = row.querySelector('[data-role="root-access-dept"]');
+  const deptWrap = row.querySelector('[data-role="root-access-dept-wrap"]');
+  const stateText = row.querySelector('[data-role="root-access-state"]');
+  if (!saveBtn || !scopeSel || !deptInput || !deptWrap || !stateText) return;
+
+  const syncDeptVisibility = () => {
+    const isDept = scopeSel.value === 'department';
+    deptWrap.style.display = isDept ? '' : 'none';
+  };
+  scopeSel.addEventListener('change', syncDeptVisibility);
+  syncDeptVisibility();
+
+  saveBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const scope = scopeSel.value;
+    const departments = deptInput.value
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean);
+    if (scope === 'department' && departments.length === 0) {
+      alert('부서 제한을 선택하면 부서명을 1개 이상 입력해야 합니다.');
+      return;
+    }
+    saveBtn.disabled = true;
+    stateText.textContent = '저장 중...';
+    try {
+      await api(`/api/files/root-access/${node.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          access_scope: scope,
+          access_departments: scope === 'department' ? departments : [],
+        }),
+      });
+      await refreshRootAccessMap();
+      stateText.textContent = '저장 완료';
+      stateText.classList.add('ok');
+      setTimeout(() => {
+        stateText.textContent = '';
+        stateText.classList.remove('ok');
+      }, 1200);
+    } catch (err) {
+      stateText.textContent = '저장 실패';
+      stateText.classList.remove('ok');
+      alert('권한 저장 실패: ' + (err.message || ''));
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+}
+
+function renderMillerColumns() {
+  const container = $('millerColumns');
+  const previewEmpty = $('explorerPreviewEmpty');
+  const previewContent = $('explorerPreviewContent');
+  if (!container) return;
+  container.innerHTML = '';
+
+  millerCols.forEach((nodes, colIdx) => {
+    const col = document.createElement('div');
+    col.className = 'miller-column';
+
+    const header = document.createElement('div');
+    header.className = 'miller-column-header';
+    header.textContent = colIdx === 0 ? 'Z:\\' : (millerSelected[colIdx - 1]?.name || '');
+    col.appendChild(header);
+
+    const list = document.createElement('div');
+    list.className = 'miller-column-list';
+
+    if (nodes.length === 0) {
+      list.innerHTML = '<div class="miller-empty">비어 있음</div>';
+    }
+
+    nodes.forEach((node) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'miller-column-item';
+      const icon = node.is_folder ? '📁' : '📄';
+      const isFav = favoriteNodeIds.has(Number(node.id));
+      const isRoot = node.parent_id === null;
+      const canAccess = node.can_access === undefined ? true : !!Number(node.can_access);
+      const accessScope = node.access_scope || 'all';
+      const accessBadge = isRoot
+        ? (accessScope === 'department'
+            ? `부서:${escapeHtml(node.access_department || '-')}`
+            : '전체')
+        : '';
+      if (millerSelected[colIdx]?.id === node.id) btn.classList.add('active');
+      if (isRoot && !canAccess) btn.classList.add('disabled');
+      btn.innerHTML = `
+        <span class="miller-column-item-icon">${icon}</span>
+        <span class="miller-column-item-main">
+          <span class="miller-column-item-name">${escapeHtml(node.name)}</span>
+          ${isRoot ? `<span class="miller-column-item-badge">${accessBadge}</span>` : ''}
+        </span>
+        <span class="miller-column-item-fav">${isFav ? '★' : ''}</span>
+      `;
+      btn.addEventListener('click', () => {
+        if (isRoot && !canAccess) {
+          alert('이 폴더는 현재 계정/부서 권한으로 접근할 수 없습니다.');
+          return;
+        }
+        onMillerNodeClick(node, colIdx);
+      });
+      list.appendChild(btn);
+    });
+
+    col.appendChild(list);
+    container.appendChild(col);
+  });
+
+  // 선택된 파일 미리보기
+  const lastSelected = millerSelected[millerSelected.length - 1];
+  if (lastSelected && !lastSelected.is_folder) {
+    const isFav = favoriteNodeIds.has(Number(lastSelected.id));
+    previewEmpty.style.display = 'none';
+    previewContent.style.display = '';
+    const loginName = currentUser?.name || currentUser?.username || '-';
+    const loginDept = currentUser?.department || '(부서 미지정)';
+    previewContent.innerHTML = `
+      <div class="explorer-login-user">접속 사용자: ${escapeHtml(loginName)} / ${escapeHtml(loginDept)}</div>
+      <div class="preview-filename">${escapeHtml(lastSelected.name)}</div>
+      <div class="explorer-preview-actions">
+        <button type="button" class="btn btn-sm" data-action="copy-path">경로복사</button>
+        <button type="button" class="btn btn-sm" data-action="toggle-favorite">${isFav ? '즐겨찾기해제' : '즐겨찾기추가'}</button>
+      </div>
+      <div class="meta-row"><span class="meta-label">경로</span><span class="meta-value">${escapeHtml(lastSelected.full_path || '')}</span></div>
+      <div class="meta-row"><span class="meta-label">크기</span><span class="meta-value">${formatFileSize(lastSelected.size)}</span></div>
+      <div class="meta-row"><span class="meta-label">수정일</span><span class="meta-value">${formatFileDate(lastSelected.modified)}</span></div>
+    `;
+    attachNodeActions(lastSelected, previewContent);
+  } else if (lastSelected && lastSelected.is_folder) {
+    const access = getRootAccessInfo(lastSelected);
+    const isRootFolder = lastSelected.parent_id === null;
+    const accessHtml = access && isAdminUser()
+      ? `
+        <div class="explorer-access-box">
+          <div class="explorer-access-title">접근 권한 (루트 폴더)</div>
+          <div class="explorer-access-row">
+            <label>공개 범위</label>
+            <select data-role="root-access-scope">
+              <option value="all" ${access.access_scope !== 'department' ? 'selected' : ''}>전체 공유</option>
+              <option value="department" ${access.access_scope === 'department' ? 'selected' : ''}>부서 제한</option>
+            </select>
+          </div>
+          <div class="explorer-access-row" data-role="root-access-dept-wrap" style="${access.access_scope === 'department' ? '' : 'display:none'}">
+            <label>허용 부서명 (쉼표로 여러 개 입력)</label>
+            <input type="text" data-role="root-access-dept" value="${escapeAttr((access.access_departments || []).join(', '))}" placeholder="예: 교육부, 전략기획부" />
+          </div>
+          <div class="explorer-access-actions">
+            <button type="button" class="btn btn-sm btn-primary" data-action="save-root-access">권한 저장</button>
+            <span class="explorer-access-state" data-role="root-access-state"></span>
+          </div>
+        </div>
+      `
+      : '';
+    previewEmpty.style.display = 'none';
+    previewContent.style.display = '';
+    const loginName = currentUser?.name || currentUser?.username || '-';
+    const loginDept = currentUser?.department || '(부서 미지정)';
+    previewContent.innerHTML = `
+      <div class="explorer-login-user">접속 사용자: ${escapeHtml(loginName)} / ${escapeHtml(loginDept)}</div>
+      <div class="preview-filename">${escapeHtml(lastSelected.name)}</div>
+      <div class="meta-row"><span class="meta-label">종류</span><span class="meta-value">${isRootFolder ? '루트 폴더' : '폴더'}</span></div>
+      <div class="meta-row"><span class="meta-label">경로</span><span class="meta-value">${escapeHtml(lastSelected.full_path || '')}</span></div>
+      ${accessHtml}
+    `;
+    if (accessHtml) attachRootAccessActions(lastSelected, previewContent);
+  } else if (millerSelected.length === 0) {
+    previewEmpty.style.display = '';
+    previewContent.style.display = 'none';
+    previewContent.innerHTML = '';
+  }
+
+  // 마지막 컬럼으로 스크롤
+  setTimeout(() => { if (container.lastChild) container.lastChild.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'end' }); }, 50);
+}
+
+async function loadExplorerSearch() {
+  const input = $('explorerSearchInput');
+  const q = input ? input.value.trim() : '';
+  if (q.length < 2) {
+    alert('검색어를 2글자 이상 입력해 주세요.');
+    return;
+  }
+  const prevCols = millerCols.map((col) => [...col]);
+  const prevSelected = [...millerSelected];
+  explorerMode = 'search';
+  const container = $('millerColumns');
+  if (container) container.innerHTML = '<div class="miller-loading">검색 중…</div>';
+  try {
+    console.log('[Explorer Search] start', { query: q, apiBase: API_BASE });
+    const rows = await api(`/api/files/search?q=${encodeURIComponent(q)}&limit=200`);
+    console.log('[Explorer Search] success', { query: q, resultCount: rows.length });
+    millerCols = [rows];
+    millerSelected = [];
     renderMillerColumns();
   } catch (e) {
-    const container = $('millerColumns');
-    if (container) container.innerHTML = '<div class="explorer-error">파일 목록을 불러올 수 없습니다.</div>';
-    console.error('loadExplorerFiles', e);
+    console.error('[Explorer Search] failed', {
+      query: q,
+      message: e?.message,
+      stack: e?.stack,
+    });
+    // 실패해도 탐색 화면 상태를 유지한다.
+    millerCols = prevCols;
+    millerSelected = prevSelected;
+    renderMillerColumns();
+    alert('검색 실패: ' + (e?.message || '서버 응답을 확인해 주세요.'));
   }
+}
+
+async function loadExplorerRecent() {
+  explorerMode = 'recent';
+  const container = $('millerColumns');
+  if (container) container.innerHTML = '<div class="miller-loading">최근 파일 불러오는 중…</div>';
+  try {
+    const rows = await api('/api/files/recent?limit=100');
+    millerCols = [rows];
+    millerSelected = [];
+    renderMillerColumns();
+  } catch (e) {
+    if (container) container.innerHTML = '<div class="explorer-error">최근 파일 조회 실패</div>';
+  }
+}
+
+async function loadExplorerFavorites() {
+  explorerMode = 'favorites';
+  const container = $('millerColumns');
+  if (container) container.innerHTML = '<div class="miller-loading">즐겨찾기 불러오는 중…</div>';
+  try {
+    const rows = await api('/api/files/favorites');
+    favoriteNodeIds = new Set(rows.map((r) => Number(r.id)).filter(Number.isFinite));
+    millerCols = [rows];
+    millerSelected = [];
+    renderMillerColumns();
+  } catch (e) {
+    if (container) container.innerHTML = '<div class="explorer-error">즐겨찾기 조회 실패</div>';
+  }
+}
+
+async function onMillerNodeClick(node, colIdx) {
+  // 해당 컬럼 이후 컬럼 제거
+  const prevCols = millerCols.map((col) => [...col]);
+  const prevSelected = [...millerSelected];
+  millerCols = millerCols.slice(0, colIdx + 1);
+  millerSelected = millerSelected.slice(0, colIdx);
+  millerSelected[colIdx] = node;
+
+  if (node.is_folder) {
+    // 자식 로드
+    try {
+      console.log('[Explorer Browse] load children', { nodeId: node.id, path: node.full_path });
+      const children = await api(`/api/files/nodes?parent_id=${node.id}`);
+      console.log('[Explorer Browse] children loaded', { nodeId: node.id, count: children.length });
+      millerCols.push(children);
+    } catch (e) {
+      console.error('[Explorer Browse] children load failed', {
+        nodeId: node.id,
+        path: node.full_path,
+        message: e?.message,
+      });
+      millerCols = prevCols;
+      millerSelected = prevSelected;
+      alert('폴더 열기 실패: ' + (e?.message || ''));
+    }
+  }
+  if (!node.is_folder) {
+    api(`/api/files/recent/${node.id}`, { method: 'POST' }).catch((e) => {
+      console.warn('[Explorer Recent] track failed', e?.message || e);
+    });
+  }
+  renderMillerColumns();
+}
+
+async function loadExplorerRoot() {
+  const container = $('millerColumns');
+  if (container) container.innerHTML = '<div class="miller-loading">로딩 중…</div>';
+  try {
+    const roots = await api('/api/files/nodes');
+    await refreshFavoriteIds();
+    await refreshRootAccessMap();
+    millerCols = [roots];
+    millerSelected = [];
+    renderMillerColumns();
+    await loadScanStatus();
+  } catch (e) {
+    if (container) container.innerHTML = '<div class="explorer-error">데이터가 없습니다. CSV 임포트 또는 디스크 스캔을 실행하세요.</div>';
+  }
+}
+
+async function loadScanStatus() {
+  try {
+    const status = await api('/api/files/scan-status');
+    const el = $('explorerScanStatus');
+    if (!el) return;
+    if (status.total > 0) {
+      const lastTime = status.last?.time ? new Date(status.last.time).toLocaleDateString('ko-KR') : '-';
+      el.textContent = `${status.total.toLocaleString()}개 항목 · 마지막 스캔: ${lastTime}`;
+    } else {
+      el.textContent = '데이터 없음 — 스캔 필요';
+    }
+  } catch (_) {}
 }
 
 function showExplorerPage() {
@@ -956,7 +1354,8 @@ function showExplorerPage() {
   if (sidebarEl) sidebarEl.classList.add('sidebar--hidden');
   if ($linkPageView) $linkPageView.classList.add('page-view--hidden');
   if ($explorerPageView) $explorerPageView.classList.remove('page-view--hidden');
-  loadExplorerFiles();
+  explorerMode = 'browse';
+  loadExplorerRoot();
 }
 function showLinkPage() {
   const sidebarEl = document.querySelector('.sidebar');
@@ -967,6 +1366,70 @@ function showLinkPage() {
 
 $('explorerBtn').addEventListener('click', showExplorerPage);
 $('backToLinksBtn').addEventListener('click', showLinkPage);
+const $explorerBrowseBtn = $('explorerBrowseBtn');
+if ($explorerBrowseBtn) {
+  $explorerBrowseBtn.addEventListener('click', () => {
+    explorerMode = 'browse';
+    const input = $('explorerSearchInput');
+    if (input) input.value = '';
+    loadExplorerRoot();
+  });
+}
+const $explorerSearchBtn = $('explorerSearchBtn');
+if ($explorerSearchBtn) $explorerSearchBtn.addEventListener('click', loadExplorerSearch);
+const $explorerSearchInput = $('explorerSearchInput');
+if ($explorerSearchInput) {
+  $explorerSearchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      loadExplorerSearch();
+    }
+  });
+}
+const $explorerRecentBtn = $('explorerRecentBtn');
+if ($explorerRecentBtn) $explorerRecentBtn.addEventListener('click', loadExplorerRecent);
+const $explorerFavoritesBtn = $('explorerFavoritesBtn');
+if ($explorerFavoritesBtn) $explorerFavoritesBtn.addEventListener('click', loadExplorerFavorites);
+
+// CSV 임포트 버튼
+const $scanCsvBtn = $('scanCsvBtn');
+if ($scanCsvBtn) {
+  $scanCsvBtn.addEventListener('click', async () => {
+    $scanCsvBtn.disabled = true;
+    $scanCsvBtn.textContent = '임포트 중…';
+    const el = $('explorerScanStatus');
+    if (el) el.textContent = 'CSV 임포트 중… (잠시 후 새로고침하세요)';
+    try {
+      await api('/api/files/scan/csv', { method: 'POST' });
+      setTimeout(() => { loadExplorerRoot(); $scanCsvBtn.disabled = false; $scanCsvBtn.textContent = 'CSV 임포트'; }, 8000);
+    } catch (e) {
+      alert('임포트 실패: ' + e.message);
+      $scanCsvBtn.disabled = false;
+      $scanCsvBtn.textContent = 'CSV 임포트';
+    }
+  });
+}
+
+// 디스크 직접 스캔 버튼
+const $scanDiskBtn = $('scanDiskBtn');
+if ($scanDiskBtn) {
+  $scanDiskBtn.addEventListener('click', async () => {
+    if (!confirm('Z:\\ 드라이브를 직접 스캔합니다. 시간이 걸릴 수 있습니다.')) return;
+    $scanDiskBtn.disabled = true;
+    $scanDiskBtn.textContent = '스캔 중…';
+    const el = $('explorerScanStatus');
+    if (el) el.textContent = 'Z:\\ 스캔 중… (완료 후 자동 새로고침)';
+    try {
+      await api('/api/files/scan/disk', { method: 'POST' });
+      setTimeout(() => { loadExplorerRoot(); $scanDiskBtn.disabled = false; $scanDiskBtn.textContent = '디스크 스캔'; }, 15000);
+    } catch (e) {
+      alert('스캔 실패: ' + e.message);
+      $scanDiskBtn.disabled = false;
+      $scanDiskBtn.textContent = '디스크 스캔';
+    }
+  });
+}
+updateExplorerAdminControls();
 
 if ($searchInput) {
   $searchInput.addEventListener('input', () => {
@@ -1188,11 +1651,174 @@ $('settingsForm').addEventListener('submit', async (e) => {
 async function init() {
   API_BASE = await getApiBaseFromStorage();
   API_BASE = API_BASE.replace(/\/+$/, '');
-  const ok = await loadCategories();
-  if (ok) loadLinks();
-  else $currentCategoryTitle.textContent = '전체 링크';
-  await loadWorkspaces();
-  setViewMode(viewMode);
+  authToken = await getAuthToken();
+  if (authToken) {
+    try {
+      const me = await fetch(API_BASE + '/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${authToken}` },
+      }).then((r) => r.ok ? r.json() : Promise.reject());
+      currentUser = me;
+      updateUserDisplay();
+      hideAuthScreen();
+      await loadAppData();
+    } catch (e) {
+      authToken = null;
+      currentUser = null;
+      await clearAuthToken();
+      showAuthScreen('login');
+    }
+  } else {
+    showAuthScreen('login');
+  }
 }
+
+// ----- 로그인 폼 -----
+const $loginForm = $('loginForm');
+if ($loginForm) {
+  $loginForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = $('loginUsername').value.trim();
+    const password = $('loginPassword').value;
+    const remember = $('rememberUsername').checked;
+    const errEl = $('loginError');
+    errEl.textContent = '';
+    try {
+      const res = await fetch(API_BASE + '/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || '로그인 실패');
+      authToken = data.token;
+      currentUser = data.user;
+      await setAuthToken(authToken);
+      if (remember) localStorage.setItem('savedUsername', username);
+      else localStorage.removeItem('savedUsername');
+      updateUserDisplay();
+      hideAuthScreen();
+      await loadAppData();
+    } catch (err) {
+      errEl.textContent = err.message;
+    }
+  });
+}
+
+// ----- 회원가입 폼 -----
+const $signupForm = $('signupForm');
+if ($signupForm) {
+  $signupForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = $('signupUsername').value.trim();
+    const password = $('signupPassword').value;
+    const name = $('signupName').value.trim();
+    const department = $('signupDepartment').value.trim();
+    const errEl = $('signupError');
+    errEl.textContent = '';
+    try {
+      const res = await fetch(API_BASE + '/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, name, department }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || '회원가입 실패');
+      authToken = data.token;
+      currentUser = data.user;
+      await setAuthToken(authToken);
+      updateUserDisplay();
+      hideAuthScreen();
+      await loadAppData();
+    } catch (err) {
+      errEl.textContent = err.message;
+    }
+  });
+}
+
+// ----- 인증 탭 전환 -----
+const $authTabLogin = $('authTabLogin');
+const $authTabSignup = $('authTabSignup');
+if ($authTabLogin) $authTabLogin.addEventListener('click', () => switchAuthTab('login'));
+if ($authTabSignup) $authTabSignup.addEventListener('click', () => switchAuthTab('signup'));
+
+// ----- 인증 화면 서버 주소 설정 -----
+const $authServerToggle = $('authServerToggle');
+const $authServerWrap = $('authServerWrap');
+const $authApiBaseInput = $('authApiBaseInput');
+const $authApiBaseSave = $('authApiBaseSave');
+if ($authServerToggle && $authServerWrap) {
+  $authServerToggle.addEventListener('click', () => {
+    const visible = $authServerWrap.style.display !== 'none';
+    $authServerWrap.style.display = visible ? 'none' : '';
+    if (!visible && $authApiBaseInput) $authApiBaseInput.value = API_BASE;
+  });
+}
+if ($authApiBaseSave && $authApiBaseInput) {
+  $authApiBaseSave.addEventListener('click', async () => {
+    let url = $authApiBaseInput.value.trim();
+    if (!url) return;
+    if (!url.startsWith('http')) url = 'http://' + url;
+    API_BASE = url.replace(/\/+$/, '');
+    await setApiBaseToStorage(API_BASE);
+    if ($authServerWrap) $authServerWrap.style.display = 'none';
+    const errEl = $('loginError');
+    if (errEl) errEl.textContent = `서버 주소 저장됨: ${API_BASE}`;
+  });
+}
+
+// ----- 로그아웃 -----
+const $logoutBtn = $('logoutBtn');
+if ($logoutBtn) $logoutBtn.addEventListener('click', logout);
+
+// ----- 내 정보 수정 -----
+function openProfileModal() {
+  if (!currentUser) return;
+  $('profileUsername').value = currentUser.username || '';
+  $('profileName').value = currentUser.name || '';
+  const deptSel = $('profileDepartment');
+  if (deptSel) deptSel.value = currentUser.department || '';
+  $('profileCurrentPassword').value = '';
+  $('profileNewPassword').value = '';
+  $('profileError').textContent = '';
+  $('profileSuccess').textContent = '';
+  $('profileModal').classList.add('show');
+}
+function closeProfileModal() {
+  $('profileModal').classList.remove('show');
+}
+
+const $profileBtn = $('profileBtn');
+if ($profileBtn) $profileBtn.addEventListener('click', openProfileModal);
+
+$('profileModalClose').addEventListener('click', closeProfileModal);
+$('profileFormCancel').addEventListener('click', closeProfileModal);
+
+$('profileForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = $('profileName').value.trim();
+  const department = $('profileDepartment').value.trim();
+  const currentPassword = $('profileCurrentPassword').value;
+  const newPassword = $('profileNewPassword').value;
+  const errEl = $('profileError');
+  const okEl = $('profileSuccess');
+  errEl.textContent = '';
+  okEl.textContent = '';
+  try {
+    const payload = { name, department };
+    if (newPassword) {
+      payload.currentPassword = currentPassword;
+      payload.newPassword = newPassword;
+    }
+    const updated = await api('/api/auth/me', { method: 'PUT', body: JSON.stringify(payload) });
+    currentUser = { ...currentUser, ...updated };
+    updateUserDisplay();
+    okEl.textContent = '저장되었습니다.';
+    $('profileCurrentPassword').value = '';
+    $('profileNewPassword').value = '';
+    setTimeout(closeProfileModal, 1200);
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
+});
 
 init();
