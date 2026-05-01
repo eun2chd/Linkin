@@ -1131,6 +1131,7 @@ function renderMillerColumns() {
             ? `부서:${escapeHtml(node.access_department || '-')}`
             : '전체')
         : '';
+      btn.title = node.name;
       if (millerSelected[colIdx]?.id === node.id) btn.classList.add('active');
       if (isRoot && !canAccess) btn.classList.add('disabled');
       btn.innerHTML = `
