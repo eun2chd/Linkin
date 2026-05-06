@@ -896,7 +896,9 @@ app.get('/api/workspaces', authenticate, async (req, res) => {
           `SELECT l.id, l.url, l.site_name, l.site_image, l.description
            FROM workspace_links wl
            JOIN links l ON l.id = wl.link_id
-           WHERE wl.workspace_id = ? AND l.user_id = ?
+           JOIN categories c ON l.category_id = c.id
+           WHERE wl.workspace_id = ?
+             AND (l.user_id = ? OR c.is_shared = 1)
            ORDER BY wl.sort_order, wl.link_id`,
           [w.id, req.user.id]
         );
