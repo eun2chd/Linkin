@@ -45,6 +45,13 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(UPLOAD_DIR));
 
+// ----- 웹 UI 정적 파일 배신 -----
+const WEB_STATIC = ['popup.css', 'popup.js'];
+WEB_STATIC.forEach(f => app.get(`/${f}`, (req, res) => res.sendFile(path.join(__dirname, f))));
+app.use('/fonts', express.static(path.join(__dirname, 'fonts')));
+app.use('/icons', express.static(path.join(__dirname, 'icons')));
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'popup.html')));
+
 // ----- 인증 미들웨어 -----
 function authenticate(req, res, next) {
   const auth = req.headers.authorization;

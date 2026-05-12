@@ -31,7 +31,7 @@ function getApiBaseFromStorage() {
   return new Promise((resolve) => {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
       chrome.storage.local.get(['apiBase'], (r) => resolve(r.apiBase || 'http://localhost:3000'));
-    } else resolve('http://localhost:3000');
+    } else resolve(localStorage.getItem('apiBase') || window.location.origin);
   });
 }
 
@@ -39,7 +39,7 @@ function setApiBaseToStorage(url) {
   return new Promise((resolve) => {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
       chrome.storage.local.set({ apiBase: url }, resolve);
-    } else resolve();
+    } else { localStorage.setItem('apiBase', url); resolve(); }
   });
 }
 
