@@ -89,8 +89,39 @@ async function initDb() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  try { await conn.query("ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user'"); } catch (_) {}
+  try { await conn.query("UPDATE users SET role = 'user' WHERE LOWER(TRIM(username)) = 'tdc2428'"); } catch (_) {}
+  try {
+    await conn.query(`
+      UPDATE users
+      SET role = 'admin'
+      WHERE id = (
+        SELECT min_id FROM (
+          SELECT MIN(id) AS min_id FROM users WHERE LOWER(TRIM(username)) <> 'tdc2428'
+        ) t
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM (SELECT role FROM users WHERE role = 'admin') admins
+      )
+    `);
+  } catch (_) {}
+  try { await conn.query("ALTER TABLE users ADD COLUMN can_explorer TINYINT(1) NOT NULL DEFAULT 1"); } catch (_) {}
+
   try { await conn.query('ALTER TABLE categories ADD COLUMN user_id INT DEFAULT NULL'); } catch (_) {}
   try { await conn.query('ALTER TABLE categories ADD COLUMN is_shared TINYINT(1) DEFAULT 0'); } catch (_) {}
+  try { await conn.query("ALTER TABLE categories ADD COLUMN share_scope VARCHAR(20) NOT NULL DEFAULT 'all'"); } catch (_) {}
+
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS category_shares (
+      category_id INT NOT NULL,
+      user_id INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (category_id, user_id),
+      INDEX idx_category_shares_user (user_id),
+      FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
 
   // links 테이블
   await conn.query(`
@@ -111,6 +142,18 @@ async function initDb() {
   try { await conn.query('ALTER TABLE links ADD COLUMN note TEXT DEFAULT NULL'); } catch (_) {}
   try { await conn.query('ALTER TABLE links ADD COLUMN user_id INT DEFAULT NULL'); } catch (_) {}
 
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS link_favorites (
+      user_id INT NOT NULL,
+      link_id INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, link_id),
+      INDEX idx_link_favorites_link (link_id),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (link_id) REFERENCES links(id) ON DELETE CASCADE
+    )
+  `);
+
   // workspaces 테이블
   await conn.query(`
     CREATE TABLE IF NOT EXISTS workspaces (
@@ -121,6 +164,51 @@ async function initDb() {
     )
   `);
   try { await conn.query('ALTER TABLE workspaces ADD COLUMN user_id INT DEFAULT NULL'); } catch (_) {}
+
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS memo_groups (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      sort_order INT NOT NULL DEFAULT 0,
+      user_id INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_memo_groups_user (user_id, sort_order),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS memos (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      group_id INT NOT NULL,
+      title VARCHAR(200) NOT NULL,
+      content TEXT,
+      user_id INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_memos_user_group (user_id, group_id),
+      FOREIGN KEY (group_id) REFERENCES memo_groups(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS activity_logs (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT DEFAULT NULL,
+      username VARCHAR(50) DEFAULT NULL,
+      method VARCHAR(10) NOT NULL,
+      path VARCHAR(500) NOT NULL,
+      action VARCHAR(100) NOT NULL,
+      status_code INT NOT NULL,
+      ip_address VARCHAR(100) DEFAULT NULL,
+      details JSON DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_activity_logs_created (created_at),
+      INDEX idx_activity_logs_user (user_id, created_at),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
 
   // file_nodes: 계층형 파일/폴더 트리
   await conn.query(`

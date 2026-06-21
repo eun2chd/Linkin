@@ -1,0 +1,88 @@
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Minimal Office — Light */
+    --background: 0 0% 99%;          /* #FDFDFD */
+    --foreground: 210 4% 10%;        /* #191A1B */
+    --card: 0 0% 100%;               /* #FFFFFF */
+    --card-foreground: 210 4% 10%;
+    --primary: 224 70% 41%;          /* #1E40AF Deep Blue */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 60 1% 94%;          /* #EFEFEE Warm Gray */
+    --secondary-foreground: 210 4% 10%;
+    --muted: 60 1% 94%;
+    --muted-foreground: 220 9% 46%;  /* #6B7280 */
+    --accent: 224 70% 41%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 0 0% 90%;              /* #E5E5E5 */
+    --input: 0 0% 90%;
+    --ring: 224 70% 41%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    /* Dark Mode — Slate Dark */
+    --background: 222 47% 11%;       /* #0F172A */
+    --foreground: 210 40% 96%;       /* #F1F5F9 */
+    --card: 217 33% 17%;             /* #1E293B */
+    --card-foreground: 210 40% 96%;
+    --primary: 234 89% 74%;          /* #818CF8 Indigo Neon */
+    --primary-foreground: 222 47% 11%;
+    --secondary: 217 33% 17%;        /* #1E293B */
+    --secondary-foreground: 210 40% 96%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%; /* #94A3B8 */
+    --accent: 234 89% 74%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 215 25% 27%;           /* #334155 */
+    --input: 215 25% 27%;
+    --ring: 234 89% 74%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  }
+}
+
+/* Miller columns scrollbar */
+.miller-columns::-webkit-scrollbar {
+  height: 6px;
+}
+.miller-columns::-webkit-scrollbar-thumb {
+  @apply bg-border rounded;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-border rounded-full;
+}
+
+/* Link image fallback */
+.link-thumb-img {
+  @apply w-8 h-8 object-contain rounded;
+}
+.link-thumb-img.error {
+  @apply hidden;
+}

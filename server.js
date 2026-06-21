@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
@@ -8,7 +8,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cron = require('node-cron');
 const { pool, query, initDb } = require('./db');
-const { scanFromCsv, scanFromDisk, getScanStatus } = require('./scanner');
+const { scanFromCsv, getScanStatus } = require('./scanner');
 
 const app = express();
 const PORT = 3000;
@@ -43,14 +43,49 @@ const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 app.use(cors());
 app.use(express.json());
+
+function sanitizeActivityDetails(body) {
+  if (!body || typeof body !== 'object') return null;
+  const blockedKeys = new Set(['password', 'newPassword', 'token', 'content', 'note']);
+  const safe = {};
+  for (const [key, value] of Object.entries(body)) {
+    if (blockedKeys.has(key)) continue;
+    if (Array.isArray(value)) safe[key] = value.slice(0, 20);
+    else if (typeof value === 'string') safe[key] = value.slice(0, 200);
+    else if (typeof value !== 'object') safe[key] = value;
+  }
+  return Object.keys(safe).length ? safe : null;
+}
+
+app.use('/api', (req, res, next) => {
+  const startedAt = Date.now();
+  res.on('finish', () => {
+    const userId = req.user?.id || null;
+    const username = req.user?.username || (req.path.startsWith('/auth/') ? String(req.body?.username || '').slice(0, 50) || null : null);
+    const pathValue = String(req.originalUrl || req.url).slice(0, 500);
+    const action = `${req.method} ${String(req.path || '').slice(0, 90)}`;
+    const details = sanitizeActivityDetails(req.body);
+    const duration = Date.now() - startedAt;
+    console.log(`[ACTIVITY] user=${username || 'anonymous'} method=${req.method} path=${pathValue} status=${res.statusCode} duration=${duration}ms`);
+    query(
+      `INSERT INTO activity_logs (user_id, username, method, path, action, status_code, ip_address, details)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [userId, username, req.method, pathValue, action, res.statusCode, req.ip || req.socket?.remoteAddress || null, details ? JSON.stringify(details) : null]
+    ).catch(error => console.error('[ACTIVITY] 로그 저장 실패:', error.message));
+  });
+  next();
+});
 app.use('/uploads', express.static(UPLOAD_DIR));
 
-// ----- 웹 UI 정적 파일 배신 -----
-const WEB_STATIC = ['popup.css', 'popup.js'];
-WEB_STATIC.forEach(f => app.get(`/${f}`, (req, res) => res.sendFile(path.join(__dirname, f))));
+// ----- 정적 파일 배신 -----
 app.use('/fonts', express.static(path.join(__dirname, 'fonts')));
 app.use('/icons', express.static(path.join(__dirname, 'icons')));
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'popup.html')));
+
+// React 빌드 서빙 (dist-client/)
+const CLIENT_DIST = path.join(__dirname, 'dist-client');
+if (fs.existsSync(CLIENT_DIST)) {
+  app.use(express.static(CLIENT_DIST));
+}
 
 // ----- 인증 미들웨어 -----
 function authenticate(req, res, next) {
@@ -68,10 +103,9 @@ function authenticate(req, res, next) {
 
 async function requireAdmin(req, res, next) {
   try {
-    const rows = await query('SELECT username FROM users WHERE id = ?', [req.user.id]);
-    const username = rows && rows[0] ? String(rows[0].username || '').trim().toLowerCase() : '';
-    if (username !== 'admin') {
-      return res.status(403).json({ error: '관리자(admin) 계정만 접근할 수 있습니다.' });
+    const rows = await query('SELECT role FROM users WHERE id = ?', [req.user.id]);
+    if (!rows || !rows[0] || rows[0].role !== 'admin') {
+      return res.status(403).json({ error: '관리자 권한이 필요합니다.' });
     }
     next();
   } catch (e) {
@@ -215,7 +249,7 @@ app.post('/api/auth/signup', async (req, res) => {
     );
     res.status(201).json({
       token,
-      user: { id: userId, username: String(username).trim(), name: String(name).trim(), department: department || null },
+      user: { id: userId, username: String(username).trim(), name: String(name).trim(), department: department || null, role: 'user', can_explorer: 1 },
     });
   } catch (e) {
     console.error('POST /api/auth/signup', e);
@@ -245,7 +279,7 @@ app.post('/api/auth/login', async (req, res) => {
     );
     res.json({
       token,
-      user: { id: user.id, username: user.username, name: user.name, department: user.department },
+      user: { id: user.id, username: user.username, name: user.name, department: user.department, role: user.role || 'user', can_explorer: user.can_explorer ?? 1 },
     });
   } catch (e) {
     console.error('POST /api/auth/login', e);
@@ -255,7 +289,7 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.get('/api/auth/me', authenticate, async (req, res) => {
   try {
-    const rows = await query('SELECT id, username, name, department FROM users WHERE id = ?', [req.user.id]);
+    const rows = await query('SELECT id, username, name, department, role, can_explorer FROM users WHERE id = ?', [req.user.id]);
     if (!rows || rows.length === 0) return res.status(404).json({ error: '사용자를 찾을 수 없습니다.' });
     res.json(rows[0]);
   } catch (e) {
@@ -296,7 +330,7 @@ app.put('/api/auth/me', authenticate, async (req, res) => {
 
     params.push(req.user.id);
     await query(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
-    const updated = await query('SELECT id, username, name, department FROM users WHERE id = ?', [req.user.id]);
+    const updated = await query('SELECT id, username, name, department, role, can_explorer FROM users WHERE id = ?', [req.user.id]);
     res.json(updated[0]);
   } catch (e) {
     console.error('PUT /api/auth/me', e);
@@ -305,21 +339,54 @@ app.put('/api/auth/me', authenticate, async (req, res) => {
 });
 
 // ----- 카테고리 API -----
+app.get('/api/share-targets', authenticate, async (req, res) => {
+  try {
+    const rows = await query(
+      'SELECT id, name, username, department FROM users WHERE id <> ? ORDER BY name, username',
+      [req.user.id]
+    );
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/categories', authenticate, async (req, res) => {
   try {
     const rows = await query(
-      `SELECT c.*, u.name AS shared_by_name
+      `SELECT c.*, u.name AS shared_by_name,
+              (SELECT COUNT(*) FROM links l WHERE l.category_id = c.id AND (l.user_id = ? OR c.is_shared = 1)) AS link_count
        FROM categories c
        LEFT JOIN users u ON u.id = c.user_id
-       WHERE c.user_id = ? OR c.is_shared = 1
+       WHERE c.user_id = ?
+          OR (c.is_shared = 1 AND (
+                c.share_scope = 'all'
+                OR EXISTS (SELECT 1 FROM category_shares cs WHERE cs.category_id = c.id AND cs.user_id = ?)
+              ))
        ORDER BY c.sort_order, c.id`,
+      [req.user.id, req.user.id, req.user.id]
+    );
+    const ownedShares = await query(
+      `SELECT cs.category_id, cs.user_id
+       FROM category_shares cs
+       JOIN categories c ON c.id = cs.category_id
+       WHERE c.user_id = ?`,
       [req.user.id]
     );
+    const shareIdsByCategory = new Map();
+    for (const row of ownedShares) {
+      if (!shareIdsByCategory.has(row.category_id)) shareIdsByCategory.set(row.category_id, []);
+      shareIdsByCategory.get(row.category_id).push(row.user_id);
+    }
     // is_shared이고 내 것이 아닌 경우에만 shared_by_name 노출
     const result = rows.map((r) => ({
       ...r,
+      is_shared: !!r.is_shared,
       shared_by_name: (r.is_shared && r.user_id !== req.user.id) ? r.shared_by_name : null,
       is_mine: r.user_id === req.user.id,
+      share_scope: r.share_scope || 'all',
+      shared_user_ids: r.user_id === req.user.id ? (shareIdsByCategory.get(r.id) || []) : [],
+      link_count: Number(r.link_count ?? 0),
     }));
     res.json(result);
   } catch (e) {
@@ -361,16 +428,39 @@ app.patch('/api/categories/reorder', authenticate, async (req, res) => {
 
 app.post('/api/categories', authenticate, async (req, res) => {
   try {
-    const { name, sort_order = 0, is_shared = false } = req.body;
+    const { name, sort_order = 0, is_shared = false, share_scope = 'all', shared_user_ids = [] } = req.body;
     if (!name || typeof name !== 'string') {
       return res.status(400).json({ error: '카테고리 이름이 필요합니다.' });
     }
-    const r = await query(
-      'INSERT INTO categories (name, sort_order, user_id, is_shared) VALUES (?, ?, ?, ?)',
-      [name.trim(), sort_order, req.user.id, is_shared ? 1 : 0]
-    );
-    const id = r && r.insertId != null ? r.insertId : r;
-    res.status(201).json({ id, name: name.trim(), sort_order, user_id: req.user.id, is_shared: !!is_shared });
+    const scope = share_scope === 'selected' ? 'selected' : 'all';
+    const targetIds = [...new Set((Array.isArray(shared_user_ids) ? shared_user_ids : []).map(Number))]
+      .filter(id => Number.isInteger(id) && id > 0 && id !== req.user.id);
+    if (is_shared && scope === 'selected' && targetIds.length === 0) {
+      return res.status(400).json({ error: '공유할 사용자를 한 명 이상 선택해 주세요.' });
+    }
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [r] = await conn.execute(
+        'INSERT INTO categories (name, sort_order, user_id, is_shared, share_scope) VALUES (?, ?, ?, ?, ?)',
+        [name.trim(), sort_order, req.user.id, is_shared ? 1 : 0, scope]
+      );
+      if (is_shared && scope === 'selected') {
+        for (const userId of targetIds) {
+          await conn.execute(
+            'INSERT INTO category_shares (category_id, user_id) SELECT ?, id FROM users WHERE id = ? AND id <> ?',
+            [r.insertId, userId, req.user.id]
+          );
+        }
+      }
+      await conn.commit();
+      res.status(201).json({ id: r.insertId, name: name.trim(), sort_order, user_id: req.user.id, is_shared: !!is_shared, share_scope: scope, shared_user_ids: targetIds });
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    } finally {
+      conn.release();
+    }
   } catch (e) {
     console.error('POST /api/categories', e);
     res.status(500).json({ error: e.message });
@@ -379,7 +469,7 @@ app.post('/api/categories', authenticate, async (req, res) => {
 
 app.put('/api/categories/:id', authenticate, async (req, res) => {
   try {
-    const { name, sort_order, is_shared } = req.body;
+    const { name, sort_order, is_shared, share_scope, shared_user_ids } = req.body;
     const id = req.params.id;
     if (!id) return res.status(400).json({ error: 'id가 필요합니다.' });
     const cats = await query('SELECT * FROM categories WHERE id = ?', [id]);
@@ -388,11 +478,40 @@ app.put('/api/categories/:id', authenticate, async (req, res) => {
     const nameVal = typeof name === 'string' ? name.trim() : null;
     const orderVal = typeof sort_order === 'number' ? sort_order : null;
     const sharedVal = is_shared !== undefined ? (is_shared ? 1 : 0) : null;
-    await query(
-      'UPDATE categories SET name = COALESCE(?, name), sort_order = COALESCE(?, sort_order), is_shared = COALESCE(?, is_shared) WHERE id = ?',
-      [nameVal, orderVal, sharedVal, id]
-    );
-    res.json({ ok: true });
+    const scopeVal = share_scope !== undefined ? (share_scope === 'selected' ? 'selected' : 'all') : null;
+    const targetIds = [...new Set((Array.isArray(shared_user_ids) ? shared_user_ids : []).map(Number))]
+      .filter(userId => Number.isInteger(userId) && userId > 0 && userId !== req.user.id);
+    const effectiveShared = is_shared !== undefined ? !!is_shared : !!cats[0].is_shared;
+    const effectiveScope = scopeVal || cats[0].share_scope || 'all';
+    if (effectiveShared && effectiveScope === 'selected' && shared_user_ids !== undefined && targetIds.length === 0) {
+      return res.status(400).json({ error: '공유할 사용자를 한 명 이상 선택해 주세요.' });
+    }
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.execute(
+        'UPDATE categories SET name = COALESCE(?, name), sort_order = COALESCE(?, sort_order), is_shared = COALESCE(?, is_shared), share_scope = COALESCE(?, share_scope) WHERE id = ?',
+        [nameVal, orderVal, sharedVal, scopeVal, id]
+      );
+      if (is_shared === false || effectiveScope === 'all') {
+        await conn.execute('DELETE FROM category_shares WHERE category_id = ?', [id]);
+      } else if (shared_user_ids !== undefined) {
+        await conn.execute('DELETE FROM category_shares WHERE category_id = ?', [id]);
+        for (const userId of targetIds) {
+          await conn.execute(
+            'INSERT INTO category_shares (category_id, user_id) SELECT ?, id FROM users WHERE id = ? AND id <> ?',
+            [id, userId, req.user.id]
+          );
+        }
+      }
+      await conn.commit();
+      res.json({ ok: true });
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    } finally {
+      conn.release();
+    }
   } catch (e) {
     console.error('PUT /api/categories', e);
     res.status(500).json({ error: e.message });
@@ -416,11 +535,17 @@ app.get('/api/links', authenticate, async (req, res) => {
   try {
     const categoryId = req.query.category_id;
     // 본인 링크 OR 공유 카테고리에 속한 링크 모두 반환
-    let sql = `SELECT l.*, c.name AS category_name
+    let sql = `SELECT l.*, c.name AS category_name,
+                      EXISTS (SELECT 1 FROM link_favorites lf WHERE lf.link_id = l.id AND lf.user_id = ?) AS is_favorite
                FROM links l
                JOIN categories c ON l.category_id = c.id
-               WHERE (l.user_id = ? OR c.is_shared = 1)`;
-    const params = [req.user.id];
+               WHERE (l.user_id = ? OR (
+                 c.is_shared = 1 AND (
+                   c.share_scope = 'all'
+                   OR EXISTS (SELECT 1 FROM category_shares cs WHERE cs.category_id = c.id AND cs.user_id = ?)
+                 )
+               ))`;
+    const params = [req.user.id, req.user.id, req.user.id];
     if (categoryId) {
       sql += ' AND l.category_id = ?';
       params.push(categoryId);
@@ -463,6 +588,39 @@ app.patch('/api/links/reorder', authenticate, async (req, res) => {
   } catch (e) {
     console.error('PATCH /api/links/reorder', e);
     res.status(500).json({ error: e.message || '순서 저장 중 오류가 났습니다.' });
+  }
+});
+
+app.put('/api/links/:id/favorite', authenticate, async (req, res) => {
+  try {
+    const linkId = Number(req.params.id);
+    const favorite = !!req.body.favorite;
+    if (!Number.isInteger(linkId) || linkId <= 0) {
+      return res.status(400).json({ error: '유효한 링크 ID가 필요합니다.' });
+    }
+    const accessible = await query(
+      `SELECT l.id
+       FROM links l
+       JOIN categories c ON c.id = l.category_id
+       WHERE l.id = ? AND (
+         l.user_id = ? OR (c.is_shared = 1 AND (
+           c.share_scope = 'all'
+           OR EXISTS (SELECT 1 FROM category_shares cs WHERE cs.category_id = c.id AND cs.user_id = ?)
+         ))
+       )`,
+      [linkId, req.user.id, req.user.id]
+    );
+    if (!accessible.length) return res.status(404).json({ error: '접근할 수 없는 링크입니다.' });
+
+    if (favorite) {
+      await query('INSERT IGNORE INTO link_favorites (user_id, link_id) VALUES (?, ?)', [req.user.id, linkId]);
+    } else {
+      await query('DELETE FROM link_favorites WHERE user_id = ? AND link_id = ?', [req.user.id, linkId]);
+    }
+    res.json({ ok: true, is_favorite: favorite });
+  } catch (e) {
+    console.error('PUT /api/links/:id/favorite', e);
+    res.status(500).json({ error: e.message || '즐겨찾기 변경에 실패했습니다.' });
   }
 });
 
@@ -759,14 +917,6 @@ app.post('/api/files/scan/csv', authenticate, async (req, res) => {
   scanFromCsv().catch(e => console.error('[Scanner] CSV 오류:', e.message));
 });
 
-// Z:\ 디스크 직접 스캔 트리거
-app.post('/api/files/scan/disk', authenticate, async (req, res) => {
-  const status = getScanStatus();
-  if (status.running) return res.status(409).json({ error: '이미 스캔 중입니다.' });
-  res.json({ message: '디스크 스캔을 시작합니다.' });
-  scanFromDisk().catch(e => console.error('[Scanner] 디스크 오류:', e.message));
-});
-
 // 로컬 PC에서 CSV 파일 업로드 후 자동 임포트
 app.post('/api/files/upload-csv', authenticate, (req, res, next) => {
   csvUpload.single('csv')(req, res, (err) => {
@@ -807,8 +957,13 @@ app.post('/api/links', authenticate, async (req, res) => {
     const urlTrim = url && String(url).trim();
     if (!urlTrim) return res.status(400).json({ error: 'URL을 입력해 주세요.' });
     const cats = await query(
-      'SELECT * FROM categories WHERE id = ? AND (user_id = ? OR is_shared = 1)',
-      [category_id, req.user.id]
+      `SELECT c.* FROM categories c WHERE c.id = ? AND (
+         c.user_id = ? OR (c.is_shared = 1 AND (
+           c.share_scope = 'all'
+           OR EXISTS (SELECT 1 FROM category_shares cs WHERE cs.category_id = c.id AND cs.user_id = ?)
+         ))
+       )`,
+      [category_id, req.user.id, req.user.id]
     );
     if (!cats || cats.length === 0) return res.status(403).json({ error: '접근할 수 없는 카테고리입니다.' });
     const existing = await query('SELECT id FROM links WHERE url = ? AND user_id = ?', [urlTrim, req.user.id]);
@@ -840,8 +995,13 @@ app.put('/api/links/:id', authenticate, async (req, res) => {
     if (!linkRows || linkRows.length === 0) return res.status(404).json({ error: '해당 링크가 없거나 권한이 없습니다.' });
     if (category_id) {
       const cats = await query(
-        'SELECT * FROM categories WHERE id = ? AND (user_id = ? OR is_shared = 1)',
-        [category_id, req.user.id]
+        `SELECT c.* FROM categories c WHERE c.id = ? AND (
+           c.user_id = ? OR (c.is_shared = 1 AND (
+             c.share_scope = 'all'
+             OR EXISTS (SELECT 1 FROM category_shares cs WHERE cs.category_id = c.id AND cs.user_id = ?)
+           ))
+         )`,
+        [category_id, req.user.id, req.user.id]
       );
       if (!cats || cats.length === 0) return res.status(403).json({ error: '접근할 수 없는 카테고리입니다.' });
     }
@@ -891,6 +1051,28 @@ app.delete('/api/links/:id', authenticate, async (req, res) => {
 });
 
 // ----- 작업 그룹(워크스페이스) API -----
+async function getValidWorkspaceLinkIds(rawIds, userId) {
+  const ids = [...new Set((Array.isArray(rawIds) ? rawIds : []).map(Number))]
+    .filter(id => Number.isInteger(id) && id > 0);
+  if (ids.length === 0) return [];
+  const placeholders = ids.map(() => '?').join(', ');
+  const rows = await query(
+    `SELECT l.id
+     FROM links l
+     JOIN categories c ON c.id = l.category_id
+     WHERE l.id IN (${placeholders})
+       AND (l.user_id = ? OR (
+         c.is_shared = 1 AND (
+           c.share_scope = 'all'
+           OR EXISTS (SELECT 1 FROM category_shares cs WHERE cs.category_id = c.id AND cs.user_id = ?)
+         )
+       ))`,
+    [...ids, userId, userId]
+  );
+  const allowed = new Set(rows.map(row => Number(row.id)));
+  return ids.filter(id => allowed.has(id));
+}
+
 app.get('/api/workspaces', authenticate, async (req, res) => {
   try {
     const rows = await query(
@@ -905,9 +1087,14 @@ app.get('/api/workspaces', authenticate, async (req, res) => {
            JOIN links l ON l.id = wl.link_id
            JOIN categories c ON l.category_id = c.id
            WHERE wl.workspace_id = ?
-             AND (l.user_id = ? OR c.is_shared = 1)
+             AND (l.user_id = ? OR (
+               c.is_shared = 1 AND (
+                 c.share_scope = 'all'
+                 OR EXISTS (SELECT 1 FROM category_shares cs WHERE cs.category_id = c.id AND cs.user_id = ?)
+               )
+             ))
            ORDER BY wl.sort_order, wl.link_id`,
-          [w.id, req.user.id]
+          [w.id, req.user.id, req.user.id]
         );
         return { ...w, links: linkRows };
       })
@@ -925,20 +1112,31 @@ app.post('/api/workspaces', authenticate, async (req, res) => {
     if (!name || typeof name !== 'string' || !name.trim()) {
       return res.status(400).json({ error: '그룹 이름을 입력해 주세요.' });
     }
-    const [r] = await pool.execute(
-      'INSERT INTO workspaces (name, sort_order, user_id) VALUES (?, ?, ?)',
-      [name.trim(), sort_order, req.user.id]
-    );
-    const workspaceId = r.insertId;
-    if (link_ids && link_ids.length > 0) {
-      for (let i = 0; i < link_ids.length; i++) {
-        await pool.execute(
+    const validLinkIds = await getValidWorkspaceLinkIds(link_ids, req.user.id);
+    if (validLinkIds.length !== new Set((Array.isArray(link_ids) ? link_ids : []).map(Number)).size) {
+      return res.status(400).json({ error: '선택한 링크 중 접근할 수 없는 링크가 있습니다. 목록을 새로고침해 주세요.' });
+    }
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [r] = await conn.execute(
+        'INSERT INTO workspaces (name, sort_order, user_id) VALUES (?, ?, ?)',
+        [name.trim(), sort_order, req.user.id]
+      );
+      for (let i = 0; i < validLinkIds.length; i++) {
+        await conn.execute(
           'INSERT INTO workspace_links (workspace_id, link_id, sort_order) VALUES (?, ?, ?)',
-          [workspaceId, link_ids[i], i]
+          [r.insertId, validLinkIds[i], i]
         );
       }
+      await conn.commit();
+      res.status(201).json({ id: r.insertId, name: name.trim(), sort_order, links: [] });
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    } finally {
+      conn.release();
     }
-    res.status(201).json({ id: workspaceId, name: name.trim(), sort_order, links: [] });
   } catch (e) {
     console.error('POST /api/workspaces', e);
     res.status(500).json({ error: e.message });
@@ -951,19 +1149,33 @@ app.put('/api/workspaces/:id', authenticate, async (req, res) => {
     const id = req.params.id;
     const ws = await query('SELECT * FROM workspaces WHERE id = ? AND user_id = ?', [id, req.user.id]);
     if (!ws || ws.length === 0) return res.status(404).json({ error: '권한이 없거나 없는 그룹입니다.' });
-    if (name !== undefined && name !== null && String(name).trim()) {
-      await query('UPDATE workspaces SET name = ? WHERE id = ?', [String(name).trim(), id]);
+    const validLinkIds = link_ids !== undefined ? await getValidWorkspaceLinkIds(link_ids, req.user.id) : null;
+    if (validLinkIds && validLinkIds.length !== new Set((Array.isArray(link_ids) ? link_ids : []).map(Number)).size) {
+      return res.status(400).json({ error: '선택한 링크 중 접근할 수 없는 링크가 있습니다. 목록을 새로고침해 주세요.' });
     }
-    if (link_ids && Array.isArray(link_ids)) {
-      await query('DELETE FROM workspace_links WHERE workspace_id = ?', [id]);
-      for (let i = 0; i < link_ids.length; i++) {
-        await pool.execute(
-          'INSERT INTO workspace_links (workspace_id, link_id, sort_order) VALUES (?, ?, ?)',
-          [id, link_ids[i], i]
-        );
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      if (name !== undefined && name !== null && String(name).trim()) {
+        await conn.execute('UPDATE workspaces SET name = ? WHERE id = ? AND user_id = ?', [String(name).trim(), id, req.user.id]);
       }
+      if (validLinkIds) {
+        await conn.execute('DELETE FROM workspace_links WHERE workspace_id = ?', [id]);
+        for (let i = 0; i < validLinkIds.length; i++) {
+          await conn.execute(
+            'INSERT INTO workspace_links (workspace_id, link_id, sort_order) VALUES (?, ?, ?)',
+            [id, validLinkIds[i], i]
+          );
+        }
+      }
+      await conn.commit();
+      res.json({ ok: true });
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    } finally {
+      conn.release();
     }
-    res.json({ ok: true });
   } catch (e) {
     console.error('PUT /api/workspaces/:id', e);
     res.status(500).json({ error: e.message });
@@ -983,6 +1195,133 @@ app.delete('/api/workspaces/:id', authenticate, async (req, res) => {
   }
 });
 
+// ----- 메모 API -----
+app.get('/api/memo-groups', authenticate, async (req, res) => {
+  try {
+    const rows = await query(
+      `SELECT g.*, COUNT(m.id) AS memo_count
+       FROM memo_groups g
+       LEFT JOIN memos m ON m.group_id = g.id AND m.user_id = ?
+       WHERE g.user_id = ?
+       GROUP BY g.id
+       ORDER BY g.sort_order, g.id`,
+      [req.user.id, req.user.id]
+    );
+    res.json(rows.map(row => ({ ...row, memo_count: Number(row.memo_count || 0) })));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/memo-groups', authenticate, async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: '그룹 이름을 입력해 주세요.' });
+    const orderRows = await query('SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order FROM memo_groups WHERE user_id = ?', [req.user.id]);
+    const result = await query(
+      'INSERT INTO memo_groups (name, sort_order, user_id) VALUES (?, ?, ?)',
+      [name, Number(orderRows[0]?.next_order || 0), req.user.id]
+    );
+    res.status(201).json({ id: result.insertId, name });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/memo-groups/:id', authenticate, async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: '그룹 이름을 입력해 주세요.' });
+    const [result] = await pool.execute(
+      'UPDATE memo_groups SET name = ? WHERE id = ? AND user_id = ?',
+      [name, req.params.id, req.user.id]
+    );
+    if (!result.affectedRows) return res.status(404).json({ error: '메모 그룹을 찾을 수 없습니다.' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/memo-groups/:id', authenticate, async (req, res) => {
+  try {
+    const [result] = await pool.execute(
+      'DELETE FROM memo_groups WHERE id = ? AND user_id = ?',
+      [req.params.id, req.user.id]
+    );
+    if (!result.affectedRows) return res.status(404).json({ error: '메모 그룹을 찾을 수 없습니다.' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/memos', authenticate, async (req, res) => {
+  try {
+    const groupId = Number(req.query.group_id);
+    const params = [req.user.id];
+    let sql = `SELECT m.*, g.name AS group_name
+               FROM memos m
+               JOIN memo_groups g ON g.id = m.group_id
+               WHERE m.user_id = ?`;
+    if (Number.isInteger(groupId) && groupId > 0) {
+      sql += ' AND m.group_id = ?';
+      params.push(groupId);
+    }
+    sql += ' ORDER BY m.updated_at DESC, m.id DESC';
+    res.json(await query(sql, params));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/memos', authenticate, async (req, res) => {
+  try {
+    const groupId = Number(req.body.group_id);
+    const title = String(req.body.title || '').trim();
+    const content = String(req.body.content || '').trim();
+    if (!title) return res.status(400).json({ error: '메모 제목을 입력해 주세요.' });
+    const groups = await query('SELECT id FROM memo_groups WHERE id = ? AND user_id = ?', [groupId, req.user.id]);
+    if (!groups.length) return res.status(403).json({ error: '접근할 수 없는 메모 그룹입니다.' });
+    const result = await query(
+      'INSERT INTO memos (group_id, title, content, user_id) VALUES (?, ?, ?, ?)',
+      [groupId, title, content || null, req.user.id]
+    );
+    res.status(201).json({ id: result.insertId, group_id: groupId, title, content });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/memos/:id', authenticate, async (req, res) => {
+  try {
+    const groupId = Number(req.body.group_id);
+    const title = String(req.body.title || '').trim();
+    const content = String(req.body.content || '').trim();
+    if (!title) return res.status(400).json({ error: '메모 제목을 입력해 주세요.' });
+    const groups = await query('SELECT id FROM memo_groups WHERE id = ? AND user_id = ?', [groupId, req.user.id]);
+    if (!groups.length) return res.status(403).json({ error: '접근할 수 없는 메모 그룹입니다.' });
+    const [result] = await pool.execute(
+      'UPDATE memos SET group_id = ?, title = ?, content = ? WHERE id = ? AND user_id = ?',
+      [groupId, title, content || null, req.params.id, req.user.id]
+    );
+    if (!result.affectedRows) return res.status(404).json({ error: '메모를 찾을 수 없습니다.' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/memos/:id', authenticate, async (req, res) => {
+  try {
+    const [result] = await pool.execute('DELETE FROM memos WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    if (!result.affectedRows) return res.status(404).json({ error: '메모를 찾을 수 없습니다.' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 function getLocalIP() {
   const ifaces = os.networkInterfaces();
   for (const name of Object.keys(ifaces)) {
@@ -993,25 +1332,191 @@ function getLocalIP() {
   return null;
 }
 
+// ----- 관리자 API -----
+app.get('/api/admin/users', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const rows = await query(
+      'SELECT id, username, name, department, role, can_explorer, created_at FROM users ORDER BY id'
+    );
+    res.json(rows.map(r => ({ ...r, role: r.role || 'user', can_explorer: r.can_explorer ?? 1 })));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/admin/users/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { role, name, department, can_explorer } = req.body;
+    const id = Number(req.params.id);
+    if (id === req.user.id) return res.status(400).json({ error: '자신의 권한은 변경할 수 없습니다.' });
+    const targetRows = await query('SELECT username FROM users WHERE id = ?', [id]);
+    if (!targetRows || targetRows.length === 0) return res.status(404).json({ error: '사용자를 찾을 수 없습니다.' });
+    if (role === 'admin' && String(targetRows[0].username).trim().toLowerCase() === 'tdc2428') {
+      return res.status(400).json({ error: 'tdc2428 계정은 일반 사용자로 유지됩니다.' });
+    }
+    const updates = [];
+    const params = [];
+    if (role !== undefined) { updates.push('role = ?'); params.push(role === 'admin' ? 'admin' : 'user'); }
+    if (name !== undefined) { updates.push('name = ?'); params.push(String(name).trim()); }
+    if (department !== undefined) { updates.push('department = ?'); params.push(department || null); }
+    if (can_explorer !== undefined) { updates.push('can_explorer = ?'); params.push(can_explorer ? 1 : 0); }
+    if (updates.length === 0) return res.status(400).json({ error: '변경할 내용이 없습니다.' });
+    params.push(id);
+    await query(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/admin/users/:id/reset-password', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword || String(newPassword).length < 4) {
+      return res.status(400).json({ error: '새 비밀번호는 4자 이상이어야 합니다.' });
+    }
+    const hashed = await bcrypt.hash(String(newPassword), BCRYPT_ROUNDS);
+    await query('UPDATE users SET password = ? WHERE id = ?', [hashed, req.params.id]);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/admin/users/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (id === req.user.id) return res.status(400).json({ error: '자신의 계정은 삭제할 수 없습니다.' });
+    await query('DELETE FROM users WHERE id = ?', [id]);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/admin/links', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const rows = await query(
+      `SELECT l.id, l.site_name, l.url, l.description, l.created_at,
+              c.name AS category_name, u.name AS owner_name, u.username
+       FROM links l
+       LEFT JOIN categories c ON c.id = l.category_id
+       LEFT JOIN users u ON u.id = l.user_id
+       ORDER BY l.created_at DESC, l.id DESC`
+    );
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/links/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const [result] = await pool.execute('DELETE FROM links WHERE id = ?', [req.params.id]);
+    if (!result.affectedRows) return res.status(404).json({ error: '링크를 찾을 수 없습니다.' });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/categories', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const rows = await query(
+      `SELECT c.id, c.name, c.is_shared, c.share_scope, c.created_at,
+              u.name AS owner_name, u.username, COUNT(l.id) AS item_count
+       FROM categories c
+       LEFT JOIN users u ON u.id = c.user_id
+       LEFT JOIN links l ON l.category_id = c.id
+       GROUP BY c.id
+       ORDER BY c.created_at DESC, c.id DESC`
+    );
+    res.json(rows.map(row => ({ ...row, item_count: Number(row.item_count || 0) })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/categories/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const [result] = await pool.execute('DELETE FROM categories WHERE id = ?', [req.params.id]);
+    if (!result.affectedRows) return res.status(404).json({ error: '카테고리를 찾을 수 없습니다.' });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/workspaces', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const rows = await query(
+      `SELECT w.id, w.name, w.created_at, u.name AS owner_name, u.username, COUNT(wl.link_id) AS item_count
+       FROM workspaces w
+       LEFT JOIN users u ON u.id = w.user_id
+       LEFT JOIN workspace_links wl ON wl.workspace_id = w.id
+       GROUP BY w.id
+       ORDER BY w.created_at DESC, w.id DESC`
+    );
+    res.json(rows.map(row => ({ ...row, item_count: Number(row.item_count || 0) })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/workspaces/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const [result] = await pool.execute('DELETE FROM workspaces WHERE id = ?', [req.params.id]);
+    if (!result.affectedRows) return res.status(404).json({ error: '작업 그룹을 찾을 수 없습니다.' });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/memos', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const rows = await query(
+      `SELECT m.id, m.title, m.content, m.created_at, m.updated_at,
+              g.name AS group_name, u.name AS owner_name, u.username
+       FROM memos m
+       LEFT JOIN memo_groups g ON g.id = m.group_id
+       LEFT JOIN users u ON u.id = m.user_id
+       ORDER BY m.updated_at DESC, m.id DESC`
+    );
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/memos/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const [result] = await pool.execute('DELETE FROM memos WHERE id = ?', [req.params.id]);
+    if (!result.affectedRows) return res.status(404).json({ error: '메모를 찾을 수 없습니다.' });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/activity-logs', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const requestedLimit = Number(req.query.limit || 300);
+    const limit = Math.max(1, Math.min(Number.isFinite(requestedLimit) ? requestedLimit : 300, 1000));
+    const rows = await query(
+      `SELECT id, user_id, username, method, path, action, status_code, ip_address, details, created_at
+       FROM activity_logs
+       ORDER BY created_at DESC, id DESC
+       LIMIT ${limit}`
+    );
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 let serverStarted = false;
 function startServer() {
   if (serverStarted) return;
   serverStarted = true;
+
+  // SPA fallback — must be after all API routes
+  if (fs.existsSync(CLIENT_DIST)) {
+    app.get('*', (req, res) => res.sendFile(path.join(CLIENT_DIST, 'index.html')));
+  }
+
   app.listen(PORT, '0.0.0.0', () => {
     const ip = getLocalIP();
     const addr = ip ? `http://${ip}:${PORT}` : `http://localhost:${PORT}`;
     console.log(`Link_in API server ${addr}`);
   });
 
-  // 매주 월요일 오전 3시 자동 스캔 (CSV 우선, 실패 시 디스크)
+  // 매주 월요일 오전 3시 자동 CSV 스캔
   cron.schedule('0 3 * * 1', async () => {
     console.log('[Scheduler] 주간 자동 스캔 시작');
-    try {
-      await scanFromCsv();
-    } catch (e) {
-      console.warn('[Scheduler] CSV 실패, 디스크 스캔 시도:', e.message);
-      await scanFromDisk().catch(e2 => console.error('[Scheduler] 디스크 스캔 실패:', e2.message));
-    }
+    await scanFromCsv().catch(e => console.error('[Scheduler] CSV 스캔 실패:', e.message));
   });
 }
 initDb()

@@ -1,0 +1,6 @@
+﻿{
+  "watch": ["server.js", "db.js"],
+  "ignore": ["client/", "uploads/", "node_modules/"],
+  "ext": "js,json",
+  "delay": 500
+}

@@ -1,10 +1,14 @@
-{
+﻿{
   "name": "linkin-site-parking",
   "version": "1.0.0",
   "description": "사이트 주차장 - 카테고리별 링크 관리",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "dev": "nodemon server.js",
+    "dev:server": "nodemon server.js",
+    "dev:client": "cd client && npm run dev",
+    "build": "cd client && npm run build",
     "init-db": "node -e \"require('./db').initPool(); require('./db').query('SELECT 1').then(() => console.log('DB OK')).catch(e => console.error(e))\""
   },
   "dependencies": {
@@ -15,5 +19,8 @@
     "multer": "^1.4.5-lts.1",
     "mysql2": "^3.6.5",
     "node-cron": "^4.2.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
   }
 }
