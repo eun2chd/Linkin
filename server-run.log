@@ -1,0 +1,11 @@
+[DB] connecting to 218.235.89.145:50003 as 'root' (timeout=5000ms, retries=3)
+[DB] connect attempt 1/3
+DB 초기화 완료
+Elinko API server http://192.168.0.202:3000
+[ACTIVITY] user=tdc2428 method=GET path=/api/auth/me status=304 duration=8ms
+[ACTIVITY] user=tdc2428 method=GET path=/api/links status=304 duration=11ms
+[ACTIVITY] user=tdc2428 method=GET path=/api/workspaces status=304 duration=14ms
+[ACTIVITY] user=tdc2428 method=GET path=/api/categories status=304 duration=19ms
+[ACTIVITY] user=tdc2428 method=GET path=/api/links status=304 duration=5ms
+[ACTIVITY] user=tdc2428 method=GET path=/api/links?category_id=26 status=304 duration=5ms
+[ACTIVITY] user=tdc2428 method=GET path=/api/links?category_id=26 status=304 duration=3ms

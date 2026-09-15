@@ -1,0 +1,11 @@
+elinko.duckdns.org {
+    reverse_proxy localhost:3000
+}
+
+ntptracker.duckdns.org {
+    reverse_proxy localhost:5001
+}
+
+helsingcare.duckdns.org {
+    reverse_proxy localhost:5002
+}

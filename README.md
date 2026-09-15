@@ -1,4 +1,5 @@
 # Link_in
+캐디파일 실행 : ./caddy_windows_amd64.exe run
 
 카테고리별로 링크(주소, 사이트 이름, 이미지, 설명)를 저장하는 크롬 확장 + MySQL 백엔드입니다.
 

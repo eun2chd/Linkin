@@ -90,7 +90,7 @@ export default function AdminModal({ open, onClose }: Props) {
         <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Shield className="w-5 h-5 text-primary" />
-            관리자 — 사용자 관리
+            관리자 - 사용자 관리
           </DialogTitle>
         </DialogHeader>
 

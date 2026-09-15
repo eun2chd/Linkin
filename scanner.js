@@ -185,7 +185,7 @@ async function scanFromDisk(root = SCAN_ROOT) {
   try {
     const scanSeq = await getScanSeq();
 
-    // BFS (너비 우선) — 스택 오버플로 방지
+    // BFS (너비 우선) - 스택 오버플로 방지
     const queue = [{ dirPath: root, parentId: null, rootId: null }];
     let count = 0;
 

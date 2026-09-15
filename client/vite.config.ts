@@ -8,10 +8,10 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icons/link.png'],
+      includeAssets: ['icons/elinko.png'],
       manifest: {
-        name: 'Link_in',
-        short_name: 'Link_in',
+        name: 'Elinko',
+        short_name: 'Elinko',
         description: '링크 관리 & 파일 탐색기',
         theme_color: '#3b82f6',
         background_color: '#ffffff',
@@ -19,8 +19,8 @@ export default defineConfig({
         scope: '/',
         start_url: '/',
         icons: [
-          { src: '/icons/link.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icons/link.png', sizes: '512x512', type: 'image/png' },
+          { src: '/icons/elinko.png', sizes: '192x192', type: 'image/png' },
+          { src: '/icons/elinko.png', sizes: '512x512', type: 'image/png' },
         ],
       },
       workbox: {
@@ -37,6 +37,11 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: { cacheName: 'uploads-cache', expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 } },
           },
+          {
+            urlPattern: /^\/memo-uploads\//,
+            handler: 'CacheFirst',
+            options: { cacheName: 'memo-uploads-cache', expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 7 } },
+          },
         ],
       },
     }),
@@ -51,6 +56,7 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:3000',
       '/uploads': 'http://localhost:3000',
+      '/memo-uploads': 'http://localhost:3000',
       '/icons': 'http://localhost:3000',
     },
   },

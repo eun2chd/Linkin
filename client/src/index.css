@@ -6,24 +6,24 @@
 
 @layer base {
   :root {
-    /* Minimal Office — Light */
-    --background: 0 0% 99%;          /* #FDFDFD */
-    --foreground: 210 4% 10%;        /* #191A1B */
-    --card: 0 0% 100%;               /* #FFFFFF */
-    --card-foreground: 210 4% 10%;
-    --primary: 224 70% 41%;          /* #1E40AF Deep Blue */
+    /* Premium Slate — Light */
+    --background: 0 0% 100%;         /* #FFFFFF — 헤더 + 대시보드 콘텐츠 영역 */
+    --foreground: 222 47% 11%;       /* #0F172A */
+    --card: 0 0% 100%;               /* #FFFFFF — 카드도 흰색, 보더/그림자로 구분 */
+    --card-foreground: 222 47% 11%;
+    --primary: 243 75% 59%;          /* #4F46E5 Indigo-600 */
     --primary-foreground: 0 0% 100%;
-    --secondary: 60 1% 94%;          /* #EFEFEE Warm Gray */
-    --secondary-foreground: 210 4% 10%;
-    --muted: 60 1% 94%;
-    --muted-foreground: 220 9% 46%;  /* #6B7280 */
-    --accent: 224 70% 41%;
+    --secondary: 240 14% 99%;        /* #FBFBFC — 사이드 패널 */
+    --secondary-foreground: 222 47% 11%;
+    --muted: 214 32% 91%;            /* #E2E8F0 Slate-200 — hover/틴트 (사이드 패널보다 한 단계 더 진함) */
+    --muted-foreground: 215 16% 47%; /* #64748B Slate-500 */
+    --accent: 243 75% 59%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-    --border: 0 0% 90%;              /* #E5E5E5 */
-    --input: 0 0% 90%;
-    --ring: 224 70% 41%;
+    --border: 214 32% 91%;           /* #E2E8F0 Slate-200 */
+    --input: 214 32% 91%;
+    --ring: 243 75% 59%;
     --radius: 0.75rem;
   }
 
@@ -77,6 +77,51 @@
 }
 ::-webkit-scrollbar-thumb {
   @apply bg-border rounded-full;
+}
+
+/* TipTap Editor Content */
+.tiptap-content {
+  @apply text-sm leading-7 outline-none min-h-[200px];
+}
+.tiptap-content p { @apply my-1; }
+.tiptap-content h1 { @apply text-2xl font-bold mt-6 mb-2; }
+.tiptap-content h2 { @apply text-xl font-bold mt-5 mb-2; }
+.tiptap-content h3 { @apply text-lg font-semibold mt-4 mb-1; }
+.tiptap-content ul { @apply list-disc pl-5 my-2 space-y-0.5; }
+.tiptap-content ol { @apply list-decimal pl-5 my-2 space-y-0.5; }
+.tiptap-content li { @apply leading-7; }
+.tiptap-content blockquote { @apply border-l-4 border-primary/40 pl-4 my-3 text-muted-foreground italic; }
+.tiptap-content code { @apply bg-muted text-primary font-mono text-[13px] px-1.5 py-0.5 rounded; }
+.tiptap-content pre { @apply bg-muted rounded-lg p-4 my-3 overflow-x-auto; }
+.tiptap-content pre code { @apply bg-transparent p-0 text-foreground text-[13px]; }
+.tiptap-content hr { @apply border-border my-4; }
+.tiptap-content a { @apply text-primary underline underline-offset-2 hover:text-primary/80; }
+.tiptap-content img { @apply max-w-full h-auto rounded-lg my-3 border border-border; }
+.tiptap-content img.ProseMirror-selectednode { @apply ring-2 ring-primary; }
+
+/* 체크리스트(할 일 목록) - 체크하면 줄이 쫙 그어지도록 */
+.tiptap-content ul[data-type="taskList"] { @apply list-none pl-0 my-2 space-y-1; }
+.tiptap-content ul[data-type="taskList"] li { @apply flex items-start gap-2; }
+.tiptap-content ul[data-type="taskList"] li > label { @apply flex items-center h-7 select-none cursor-pointer; }
+.tiptap-content ul[data-type="taskList"] li > div { @apply flex-1 min-w-0; }
+.tiptap-content ul[data-type="taskList"] li > div > p { @apply my-0 leading-7; }
+.tiptap-content ul[data-type="taskList"] input[type="checkbox"] { @apply w-4 h-4 rounded border-border accent-primary cursor-pointer; }
+.tiptap-content ul[data-type="taskList"] li[data-checked="true"] > div { @apply line-through text-muted-foreground; }
+/* 상세보기 등 읽기 전용 표시에서는 체크박스를 눌러도 반영되는 곳이 없으니 조작 불가로 표시 */
+.tiptap-readonly ul[data-type="taskList"] input[type="checkbox"] { @apply pointer-events-none; }
+.tiptap-readonly ul[data-type="taskList"] li > label { @apply cursor-default; }
+.tiptap-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  @apply text-muted-foreground pointer-events-none float-left h-0;
+}
+
+/* Water wave animation */
+@keyframes wave-flow {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.wave-anim {
+  animation: wave-flow 2.4s linear infinite;
 }
 
 /* Link image fallback */

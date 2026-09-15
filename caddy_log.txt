@@ -1,0 +1,197 @@
+﻿.\caddy_windows_amd64.exe : {"level":"info","ts":1785892462.2902594,"msg":"maxprocs: Leaving GOMAXPROCS=4: CPU quota undefined"}
+At line:1 char:320
++ ...  {} } }; cd c:\ECH\Linkin; .\caddy_windows_amd64.exe run 2>&1 | Out-F ...
++                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ({"level":"info"...ota undefined"}:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+{"level":"info","ts":1785892462.2902594,"msg":"GOMEMLIMIT is updated","GOMEMLIMIT":15408392601,"previous":9223372036854775807}
+{"level":"info","ts":1785892462.2902594,"msg":"using adjacent Caddyfile"}
+{"level":"info","ts":1785892462.2902594,"msg":"adapted config to JSON","adapter":"caddyfile"}
+{"level":"warn","ts":1785892462.2902594,"msg":"Caddyfile input is not formatted; run 'caddy fmt --overwrite' to fix inconsistencies","adapter":"caddyfile",
+"file":"Caddyfile","line":2}
+{"level":"info","ts":1785892462.2993205,"logger":"admin","msg":"admin endpoint started","address":"localhost:2019","enforce_origin":false,"origins":["//loc
+alhost:2019","//[::1]:2019","//127.0.0.1:2019"]}
+{"level":"info","ts":1785892462.299823,"logger":"tls.cache.maintenance","msg":"started background certificate maintenance","cache":"0x248dbcd5ca00"}
+{"level":"info","ts":1785892462.2998679,"logger":"http.auto_https","msg":"server is listening only on the HTTPS port but has no TLS connection policies; ad
+ding one to enable TLS","server_name":"srv0","https_port":443}
+{"level":"info","ts":1785892462.2998679,"logger":"http.auto_https","msg":"enabling automatic HTTP->HTTPS redirects","server_name":"srv0"}
+{"level":"warn","ts":1785892462.30038,"logger":"http","msg":"HTTP/2 skipped because it requires TLS","network":"tcp","addr":":80"}
+{"level":"warn","ts":1785892462.30038,"logger":"http","msg":"HTTP/3 skipped because it requires TLS","network":"tcp","addr":":80"}
+{"level":"info","ts":1785892462.30038,"logger":"http.log","msg":"server running","name":"remaining_auto_https_redirects","protocols":["h1","h2","h3"]}
+{"level":"info","ts":1785892462.30038,"logger":"http","msg":"enabling HTTP/3 listener","addr":":443"}
+{"level":"info","ts":1785892462.3008823,"logger":"http.log","msg":"server running","name":"srv0","protocols":["h1","h2","h3"]}
+{"level":"info","ts":1785892462.3008823,"logger":"http","msg":"enabling automatic TLS certificate management","domains":["elinko.duckdns.org"]}
+{"level":"info","ts":1785892462.301882,"msg":"autosaved config (load with --resume flag)","file":"C:\\Users\\ETK_HAC\\AppData\\Roaming\\Caddy\\autosave.jso
+n"}
+{"level":"info","ts":1785892462.301882,"msg":"serving initial configuration"}
+{"level":"info","ts":1785892462.3314478,"logger":"tls","msg":"cleaning storage unit","storage":"FileStorage:C:\\Users\\ETK_HAC\\AppData\\Roaming\\Caddy"}
+{"level":"info","ts":1785892462.3519888,"logger":"tls.obtain","msg":"acquiring lock","identifier":"elinko.duckdns.org"}
+{"level":"info","ts":1785892462.3567557,"logger":"tls.obtain","msg":"lock acquired","identifier":"elinko.duckdns.org"}
+{"level":"info","ts":1785892462.3567557,"logger":"tls.obtain","msg":"obtaining certificate","identifier":"elinko.duckdns.org"}
+{"level":"info","ts":1785892462.3567557,"logger":"http","msg":"creating new account because no account for configured email is known to us","email":"","ca"
+:"https://acme-v02.api.letsencrypt.org/directory","error":"open C:\\Users\\ETK_HAC\\AppData\\Roaming\\Caddy\\acme\\acme-v02.api.letsencrypt.org-directory\\
+users\\default\\default.json: The system cannot find the path specified."}
+{"level":"info","ts":1785892462.3577516,"logger":"http","msg":"ACME account has empty status; registering account with ACME server","contact":[],"location"
+:""}
+{"level":"info","ts":1785892462.3597455,"logger":"http","msg":"creating new account because no account for configured email is known to us","email":"","ca"
+:"https://acme-v02.api.letsencrypt.org/directory","error":"open C:\\Users\\ETK_HAC\\AppData\\Roaming\\Caddy\\acme\\acme-v02.api.letsencrypt.org-directory\\
+users\\default\\default.json: The system cannot find the path specified."}
+{"level":"info","ts":1785892462.3735113,"logger":"tls","msg":"finished cleaning storage units"}
+{"level":"info","ts":1785892463.3064733,"logger":"http","msg":"new ACME account registered","contact":[],"status":"valid"}
+{"level":"info","ts":1785892463.3197825,"logger":"http","msg":"waiting on internal rate limiter","identifiers":["elinko.duckdns.org"],"ca":"https://acme-v0
+2.api.letsencrypt.org/directory","account":""}
+{"level":"info","ts":1785892463.3197825,"logger":"http","msg":"done waiting on internal rate limiter","identifiers":["elinko.duckdns.org"],"ca":"https://ac
+me-v02.api.letsencrypt.org/directory","account":""}
+{"level":"info","ts":1785892463.3197825,"logger":"http","msg":"using ACME account","account_id":"https://acme-v02.api.letsencrypt.org/acme/acct/3599949091"
+,"account_contact":[]}
+{"level":"info","ts":1785892463.7009118,"logger":"http.acme_client","msg":"trying to solve challenge","identifier":"elinko.duckdns.org","challenge_type":"h
+ttp-01","ca":"https://acme-v02.api.letsencrypt.org/directory"}
+{"level":"error","ts":1785892467.3556008,"logger":"http.acme_client","msg":"challenge failed","identifier":"elinko.duckdns.org","challenge_type":"http-01",
+"problem":{"type":"urn:ietf:params:acme:error:connection","title":"","detail":"218.235.89.145: Fetching http://elinko.duckdns.org/.well-known/acme-challeng
+e/jFpxa-M_CL9kbXn9B1ZfL7YffSI4rmL0qwhcem-Ax_4: Error getting validation data","instance":"","subproblems":null}}
+{"level":"error","ts":1785892467.3556008,"logger":"http.acme_client","msg":"validating authorization","identifier":"elinko.duckdns.org","problem":{"type":"
+urn:ietf:params:acme:error:connection","title":"","detail":"218.235.89.145: Fetching http://elinko.duckdns.org/.well-known/acme-challenge/jFpxa-M_CL9kbXn9B
+1ZfL7YffSI4rmL0qwhcem-Ax_4: Error getting validation data","instance":"","subproblems":null},"order":"https://acme-v02.api.letsencrypt.org/acme/order/35999
+49091/540921238251","attempt":1,"max_attempts":3}
+{"level":"info","ts":1785892468.7429662,"logger":"http.acme_client","msg":"trying to solve challenge","identifier":"elinko.duckdns.org","challenge_type":"t
+ls-alpn-01","ca":"https://acme-v02.api.letsencrypt.org/directory"}
+{"level":"info","ts":1785892469.147575,"logger":"tls","msg":"served key authentication certificate","server_name":"elinko.duckdns.org","challenge":"tls-alp
+n-01","remote":"23.178.112.211:59999","distributed":false}
+{"level":"info","ts":1785892469.5378966,"logger":"tls","msg":"served key authentication certificate","server_name":"elinko.duckdns.org","challenge":"tls-al
+pn-01","remote":"52.14.87.251:32096","distributed":false}
+{"level":"info","ts":1785892469.5818064,"logger":"tls","msg":"served key authentication certificate","server_name":"elinko.duckdns.org","challenge":"tls-al
+pn-01","remote":"35.86.121.1:41010","distributed":false}
+{"level":"info","ts":1785892469.6759818,"logger":"tls","msg":"served key authentication certificate","server_name":"elinko.duckdns.org","challenge":"tls-al
+pn-01","remote":"47.129.177.148:47486","distributed":false}
+{"level":"info","ts":1785892469.8754265,"logger":"tls","msg":"served key authentication certificate","server_name":"elinko.duckdns.org","challenge":"tls-al
+pn-01","remote":"13.60.28.142:17784","distributed":false}
+{"level":"info","ts":1785892471.0988183,"logger":"http.acme_client","msg":"authorization finalized","identifier":"elinko.duckdns.org","authz_status":"valid
+"}
+{"level":"info","ts":1785892471.0988183,"logger":"http.acme_client","msg":"validations succeeded; finalizing order","order":"https://acme-v02.api.letsencry
+pt.org/acme/order/3599949091/540921262381"}
+{"level":"info","ts":1785892472.751327,"logger":"http.acme_client","msg":"got renewal info","names":["elinko.duckdns.org"],"window_start":1790996405,"windo
+w_end":1791151855,"selected_time":1791072543,"recheck_after":1785912259.751327,"explanation_url":""}
+{"level":"info","ts":1785892473.1064348,"logger":"http.acme_client","msg":"got renewal info","names":["elinko.duckdns.org"],"window_start":1790996405,"wind
+ow_end":1791151855,"selected_time":1791015328,"recheck_after":1785917092.1064348,"explanation_url":""}
+{"level":"info","ts":1785892473.4623094,"logger":"http.acme_client","msg":"got renewal info","names":["elinko.duckdns.org"],"window_start":1790996405,"wind
+ow_end":1791151855,"selected_time":1791109083,"recheck_after":1785910463.4613116,"explanation_url":""}
+{"level":"info","ts":1785892473.4623094,"logger":"http.acme_client","msg":"successfully downloaded available certificate chains","count":3,"first_url":"htt
+ps://acme-v02.api.letsencrypt.org/acme/cert/06722f087265676e0e4136b0e6f603e8664f"}
+{"level":"info","ts":1785892473.481493,"logger":"tls.obtain","msg":"certificate obtained successfully","identifier":"elinko.duckdns.org","issuer":"acme-v02
+.api.letsencrypt.org-directory"}
+{"level":"info","ts":1785892473.482002,"logger":"tls.obtain","msg":"releasing lock","identifier":"elinko.duckdns.org"}
+{"level":"info","ts":1785912262.6650455,"logger":"http.acme_client","msg":"got renewal info","names":["elinko.duckdns.org"],"window_start":1790996405,"wind
+ow_end":1791151855,"selected_time":1791088402,"recheck_after":1785934764.6650455,"explanation_url":""}
+{"level":"info","ts":1785912262.6684186,"logger":"tls.cache.maintenance","msg":"updated and stored ACME renewal information","identifiers":["elinko.duckdns
+.org"],"cert_hash":"4710e752cb559c963d4f8b2fa68696168095afbde5945c3c702a0f873454bcb7","ari_unique_id":"uVnyjs8i8IbTN0j_dhQYuoLYVYc.BnIvCHJlZ24OQTaw5vYD6GZP
+","cert_expiry":1793664960,"selected_time":1791072543,"next_update":1785934764.6650455,"explanation_url":""}
+{"level":"warn","ts":1785932290.235905,"logger":"http.handlers.reverse_proxy","msg":"aborting with incomplete response","upstream":"localhost:3000","durati
+on":0.0014292,"request":{"remote_ip":"45.88.138.44","remote_port":"50166","client_ip":"45.88.138.44","proto":"HTTP/2.0","method":"GET","host":"elinko.duckd
+ns.org","uri":"/assets/index-Bby-owLw.js","headers":{"X-Forwarded-For":["45.88.138.44"],"X-Forwarded-Host":["elinko.duckdns.org"],"Accept-Encoding":["gzip,
+ deflate, br"],"Sec-Fetch-Dest":["document"],"Sec-Fetch-Mode":["navigate"],"User-Agent":["Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHT
+ML, like Gecko) Chrome/131.0.0.0 Safari/537.36"],"Accept":["text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.
+8"],"Sec-Ch-Ua-Platform":["\"Windows\""],"X-Forwarded-Proto":["https"],"Via":["2.0 Caddy"],"Sec-Ch-Ua":["\"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\""]
+,"Sec-Fetch-Site":["cross-site"],"Sec-Ch-Ua-Mobile":["?0"],"Upgrade-Insecure-Requests":["1"],"Cache-Control":["max-age=0"],"Accept-Language":["en-US,en;q=0
+.9"],"Sec-Fetch-User":["?1"]},"tls":{"resumed":false,"version":772,"cipher_suite":4865,"proto":"h2","server_name":"elinko.duckdns.org","ech":false}},"error
+":"writing: http2: stream closed"}
+{"level":"info","ts":1785935062.4880402,"logger":"http.acme_client","msg":"got renewal info","names":["elinko.duckdns.org"],"window_start":1790996405,"wind
+ow_end":1791151855,"selected_time":1791081281,"recheck_after":1785952640.4880402,"explanation_url":""}
+{"level":"info","ts":1785935062.49256,"logger":"tls.cache.maintenance","msg":"updated and stored ACME renewal information","identifiers":["elinko.duckdns.o
+rg"],"cert_hash":"4710e752cb559c963d4f8b2fa68696168095afbde5945c3c702a0f873454bcb7","ari_unique_id":"uVnyjs8i8IbTN0j_dhQYuoLYVYc.BnIvCHJlZ24OQTaw5vYD6GZP",
+"cert_expiry":1793664960,"selected_time":1791072543,"next_update":1785952640.4880402,"explanation_url":""}
+{"level":"info","ts":1785953062.4792712,"logger":"http.acme_client","msg":"got renewal info","names":["elinko.duckdns.org"],"window_start":1790996405,"wind
+ow_end":1791151855,"selected_time":1791099555,"recheck_after":1785974832.4792712,"explanation_url":""}
+{"level":"info","ts":1785953062.484077,"logger":"tls.cache.maintenance","msg":"updated and stored ACME renewal information","identifiers":["elinko.duckdns.
+org"],"cert_hash":"4710e752cb559c963d4f8b2fa68696168095afbde5945c3c702a0f873454bcb7","ari_unique_id":"uVnyjs8i8IbTN0j_dhQYuoLYVYc.BnIvCHJlZ24OQTaw5vYD6GZP"
+,"cert_expiry":1793664960,"selected_time":1791072543,"next_update":1785974832.4792712,"explanation_url":""}
+{"level":"info","ts":1785974010.6017044,"logger":"admin.api","msg":"received request","method":"POST","host":"localhost:2019","uri":"/load","remote_ip":"12
+7.0.0.1","remote_port":"50510","headers":{"Caddy-Config-Source-File":["Caddyfile"],"Content-Type":["application/json"],"Origin":["http://localhost:2019"],"
+Accept-Encoding":["gzip"],"User-Agent":["Go-http-client/1.1"],"Content-Length":["445"],"Caddy-Config-Source-Adapter":["caddyfile"]}}
+{"level":"info","ts":1785974010.6027293,"logger":"admin","msg":"admin endpoint started","address":"localhost:2019","enforce_origin":false,"origins":["//loc
+alhost:2019","//[::1]:2019","//127.0.0.1:2019"]}
+{"level":"info","ts":1785974010.6032326,"logger":"http.auto_https","msg":"server is listening only on the HTTPS port but has no TLS connection policies; ad
+ding one to enable TLS","server_name":"srv0","https_port":443}
+{"level":"info","ts":1785974010.6032326,"logger":"http.auto_https","msg":"enabling automatic HTTP->HTTPS redirects","server_name":"srv0"}
+{"level":"info","ts":1785974010.6038072,"logger":"http","msg":"enabling HTTP/3 listener","addr":":443"}
+{"level":"info","ts":1785974010.6038072,"logger":"http.log","msg":"server running","name":"srv0","protocols":["h1","h2","h3"]}
+{"level":"warn","ts":1785974010.6038072,"logger":"http","msg":"HTTP/2 skipped because it requires TLS","network":"tcp","addr":":80"}
+{"level":"warn","ts":1785974010.6038072,"logger":"http","msg":"HTTP/3 skipped because it requires TLS","network":"tcp","addr":":80"}
+{"level":"info","ts":1785974010.6038072,"logger":"http.log","msg":"server running","name":"remaining_auto_https_redirects","protocols":["h1","h2","h3"]}
+{"level":"info","ts":1785974010.6038072,"logger":"http","msg":"enabling automatic TLS certificate management","domains":["elinko.duckdns.org","ntptracker.d
+uckdns.org"]}
+{"level":"info","ts":1785974010.6038072,"logger":"http","msg":"servers shutting down with eternal grace period"}
+{"level":"info","ts":1785974010.6062818,"msg":"autosaved config (load with --resume flag)","file":"C:\\Users\\ETK_HAC\\AppData\\Roaming\\Caddy\\autosave.js
+on"}
+{"level":"info","ts":1785974010.606785,"logger":"admin.api","msg":"load complete"}
+{"level":"info","ts":1785974010.606785,"logger":"admin","msg":"stopped previous server","address":"localhost:2019"}
+{"level":"info","ts":1785974010.6202242,"logger":"tls.obtain","msg":"acquiring lock","identifier":"ntptracker.duckdns.org"}
+{"level":"info","ts":1785974010.6216083,"logger":"tls.obtain","msg":"lock acquired","identifier":"ntptracker.duckdns.org"}
+{"level":"info","ts":1785974010.6216083,"logger":"tls.obtain","msg":"obtaining certificate","identifier":"ntptracker.duckdns.org"}
+{"level":"info","ts":1785974010.6320763,"logger":"tls","msg":"storage cleaning happened too recently; skipping for now","storage":"FileStorage:C:\\Users\\E
+TK_HAC\\AppData\\Roaming\\Caddy","instance":"dcffa1fe-d10f-4cee-89a2-0cbed193ffac","try_again":1786060410.6320763,"try_again_in":86400}
+{"level":"info","ts":1785974010.6330729,"logger":"tls","msg":"finished cleaning storage units"}
+{"level":"info","ts":1785974010.6493762,"logger":"http","msg":"waiting on internal rate limiter","identifiers":["ntptracker.duckdns.org"],"ca":"https://acm
+e-v02.api.letsencrypt.org/directory","account":""}
+{"level":"info","ts":1785974010.6493762,"logger":"http","msg":"done waiting on internal rate limiter","identifiers":["ntptracker.duckdns.org"],"ca":"https:
+//acme-v02.api.letsencrypt.org/directory","account":""}
+{"level":"info","ts":1785974010.6493762,"logger":"http","msg":"using ACME account","account_id":"https://acme-v02.api.letsencrypt.org/acme/acct/3599949091"
+,"account_contact":[]}
+{"level":"info","ts":1785974011.6537764,"logger":"http.acme_client","msg":"trying to solve challenge","identifier":"ntptracker.duckdns.org","challenge_type
+":"tls-alpn-01","ca":"https://acme-v02.api.letsencrypt.org/directory"}
+{"level":"info","ts":1785974012.0495987,"logger":"tls","msg":"served key authentication certificate","server_name":"ntptracker.duckdns.org","challenge":"tl
+s-alpn-01","remote":"23.178.112.212:44091","distributed":false}
+{"level":"info","ts":1785974012.449691,"logger":"tls","msg":"served key authentication certificate","server_name":"ntptracker.duckdns.org","challenge":"tls
+-alpn-01","remote":"34.210.115.27:37642","distributed":false}
+{"level":"info","ts":1785974012.4814188,"logger":"tls","msg":"served key authentication certificate","server_name":"ntptracker.duckdns.org","challenge":"tl
+s-alpn-01","remote":"52.14.87.251:11146","distributed":false}
+{"level":"info","ts":1785974012.6360078,"logger":"tls","msg":"served key authentication certificate","server_name":"ntptracker.duckdns.org","challenge":"tl
+s-alpn-01","remote":"47.129.212.18:34300","distributed":false}
+{"level":"info","ts":1785974012.8175657,"logger":"tls","msg":"served key authentication certificate","server_name":"ntptracker.duckdns.org","challenge":"tl
+s-alpn-01","remote":"13.61.16.68:38928","distributed":false}
+{"level":"info","ts":1785974014.058792,"logger":"http.acme_client","msg":"authorization finalized","identifier":"ntptracker.duckdns.org","authz_status":"va
+lid"}
+{"level":"info","ts":1785974014.058792,"logger":"http.acme_client","msg":"validations succeeded; finalizing order","order":"https://acme-v02.api.letsencryp
+t.org/acme/order/3599949091/541319875601"}
+{"level":"info","ts":1785974015.7055185,"logger":"http.acme_client","msg":"got renewal info","names":["ntptracker.duckdns.org"],"window_start":1791077948,"
+window_end":1791233398,"selected_time":1791089415,"recheck_after":1785996190.7055185,"explanation_url":""}
+{"level":"info","ts":1785974016.0820713,"logger":"http.acme_client","msg":"got renewal info","names":["ntptracker.duckdns.org"],"window_start":1791077948,"
+window_end":1791233398,"selected_time":1791134227,"recheck_after":1785991686.0820713,"explanation_url":""}
+{"level":"info","ts":1785974016.4732997,"logger":"http.acme_client","msg":"got renewal info","names":["ntptracker.duckdns.org"],"window_start":1791077948,"
+window_end":1791233398,"selected_time":1791116009,"recheck_after":1785991868.4732997,"explanation_url":""}
+{"level":"info","ts":1785974016.4732997,"logger":"http.acme_client","msg":"successfully downloaded available certificate chains","count":3,"first_url":"htt
+ps://acme-v02.api.letsencrypt.org/acme/cert/0604a6dd14120bea74056115e357177d10d8"}
+{"level":"info","ts":1785974016.483617,"logger":"tls.obtain","msg":"certificate obtained successfully","identifier":"ntptracker.duckdns.org","issuer":"acme
+-v02.api.letsencrypt.org-directory"}
+{"level":"info","ts":1785974016.483617,"logger":"tls.obtain","msg":"releasing lock","identifier":"ntptracker.duckdns.org"}
+{"level":"info","ts":1785975262.1828585,"logger":"http.acme_client","msg":"got renewal info","names":["elinko.duckdns.org"],"window_start":1790996405,"wind
+ow_end":1791151855,"selected_time":1791101951,"recheck_after":1785999431.1828585,"explanation_url":""}
+{"level":"info","ts":1785975262.1860273,"logger":"tls.cache.maintenance","msg":"updated and stored ACME renewal information","identifiers":["elinko.duckdns
+.org"],"cert_hash":"4710e752cb559c963d4f8b2fa68696168095afbde5945c3c702a0f873454bcb7","ari_unique_id":"uVnyjs8i8IbTN0j_dhQYuoLYVYc.BnIvCHJlZ24OQTaw5vYD6GZP
+","cert_expiry":1793664960,"selected_time":1791072543,"next_update":1785999431.1828585,"explanation_url":""}
+{"level":"warn","ts":1785988936.0392573,"logger":"http.handlers.reverse_proxy","msg":"aborting with incomplete response","upstream":"localhost:3000","durat
+ion":0.0015428,"request":{"remote_ip":"195.178.110.31","remote_port":"45684","client_ip":"195.178.110.31","proto":"HTTP/1.1","method":"GET","host":"elinko.
+duckdns.org","uri":"/assets/index-BsBMgQG4.js","headers":{"X-Forwarded-Proto":["https"],"X-Forwarded-Host":["elinko.duckdns.org"],"Via":["1.1 Caddy"],"Acce
+pt-Encoding":["gzip"],"User-Agent":["Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0"],"X-Forwarded-For":["195.178.110.31"
+]},"tls":{"resumed":false,"version":772,"cipher_suite":4865,"proto":"","server_name":"elinko.duckdns.org","ech":false}},"error":"writing: write tcp 192.168
+.0.202:443->195.178.110.31:45684: wsasend: An established connection was aborted by the software in your host machine."}
+{"level":"info","ts":1785996261.975421,"logger":"http.acme_client","msg":"got renewal info","names":["ntptracker.duckdns.org"],"window_start":1791077948,"w
+indow_end":1791233398,"selected_time":1791102534,"recheck_after":1786022123.975421,"explanation_url":""}
+{"level":"info","ts":1785996261.9801788,"logger":"tls.cache.maintenance","msg":"updated and stored ACME renewal information","identifiers":["ntptracker.duc
+kdns.org"],"cert_hash":"bace8003c6242f2508aa9e31a490e8d93d2063fa5a7f39d8f85bcabf3a9fdd8b","ari_unique_id":"uyDKRwv-1-Wc-Y8JKqOMN0WxvNg.BgSm3RQSC-p0BWEV41cX
+fRDY","cert_expiry":1793746503,"selected_time":1791089415,"next_update":1786022123.975421,"explanation_url":""}
+{"level":"info","ts":1785999862.1876066,"logger":"http.acme_client","msg":"got renewal info","names":["elinko.duckdns.org"],"window_start":1790996405,"wind
+ow_end":1791151855,"selected_time":1791042676,"recheck_after":1786018584.1876066,"explanation_url":""}
+{"level":"info","ts":1785999862.1932912,"logger":"tls.cache.maintenance","msg":"updated and stored ACME renewal information","identifiers":["elinko.duckdns
+.org"],"cert_hash":"4710e752cb559c963d4f8b2fa68696168095afbde5945c3c702a0f873454bcb7","ari_unique_id":"uVnyjs8i8IbTN0j_dhQYuoLYVYc.BnIvCHJlZ24OQTaw5vYD6GZP
+","cert_expiry":1793664960,"selected_time":1791072543,"next_update":1786018584.1876066,"explanation_url":""}
+{"level":"info","ts":1786019061.787311,"logger":"http.acme_client","msg":"got renewal info","names":["elinko.duckdns.org"],"window_start":1790996405,"windo
+w_end":1791151855,"selected_time":1791114203,"recheck_after":1786038934.787311,"explanation_url":""}
+{"level":"info","ts":1786019061.7937212,"logger":"tls.cache.maintenance","msg":"updated and stored ACME renewal information","identifiers":["elinko.duckdns
+.org"],"cert_hash":"4710e752cb559c963d4f8b2fa68696168095afbde5945c3c702a0f873454bcb7","ari_unique_id":"uVnyjs8i8IbTN0j_dhQYuoLYVYc.BnIvCHJlZ24OQTaw5vYD6GZP
+","cert_expiry":1793664960,"selected_time":1791072543,"next_update":1786038934.787311,"explanation_url":""}
+{"level":"info","ts":1786022661.8103616,"logger":"http.acme_client","msg":"got renewal info","names":["ntptracker.duckdns.org"],"window_start":1791077948,"
+window_end":1791233398,"selected_time":1791193362,"recheck_after":1786047158.8103616,"explanation_url":""}
+{"level":"info","ts":1786022661.8147962,"logger":"tls.cache.maintenance","msg":"updated and stored ACME renewal information","identifiers":["ntptracker.duc
+kdns.org"],"cert_hash":"bace8003c6242f2508aa9e31a490e8d93d2063fa5a7f39d8f85bcabf3a9fdd8b","ari_unique_id":"uyDKRwv-1-Wc-Y8JKqOMN0WxvNg.BgSm3RQSC-p0BWEV41cX
+fRDY","cert_expiry":1793746503,"selected_time":1791089415,"next_update":1786047158.8103616,"explanation_url":""}

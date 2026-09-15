@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { useApp } from '@/store/AppContext'
 import AuthScreen from '@/components/AuthScreen'
 import TopHeader from '@/components/TopHeader'
@@ -7,7 +7,10 @@ import Sidebar from '@/components/Sidebar'
 import LinkView from '@/components/LinkView'
 import ExplorerView from '@/components/ExplorerView'
 import MemoView from '@/components/MemoView'
+import DownloadCenter from '@/components/DownloadCenter'
+import WaterCheck from '@/components/WaterCheck'
 import AdminPage from '@/components/AdminPage'
+import LinkDetailPopup from '@/components/LinkDetailPopup'
 import Toaster from '@/components/Toaster'
 import LinkModal from '@/components/modals/LinkModal'
 import CategoryListModal from '@/components/modals/CategoryListModal'
@@ -26,56 +29,62 @@ type ModalState =
 function MainLayout() {
   const { state, loadAll, loadLinks } = useApp()
   const [modal, setModal] = useState<ModalState>({ type: 'none' })
-  const [showExplorer, setShowExplorer] = useState(false)
-  const [showMemo, setShowMemo] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.innerWidth < 768)
+  const [favoritesOnly, setFavoritesOnly] = useState(false)
   const loadLinksRef = useRef(loadLinks)
   loadLinksRef.current = loadLinks
+  const navigate = useNavigate()
 
   useEffect(() => { loadAll() }, [state.isAuthenticated])
 
   return (
     <>
-      <div className="flex flex-col h-screen h-[100dvh] overflow-hidden">
-        <TopHeader
+      <div className="relative flex h-screen h-[100dvh] overflow-hidden">
+        {/* 사이드바(로고 영역 포함)는 라우트와 상관없이 항상 동일한 구조로 유지 */}
+        {!sidebarCollapsed && (
+          <button
+            className="absolute inset-0 z-20 bg-black/40 md:hidden"
+            onClick={() => setSidebarCollapsed(true)}
+            aria-label="사이드바 닫기"
+          />
+        )}
+        <Sidebar
           collapsed={sidebarCollapsed}
-          showExplorer={showExplorer}
-          showMemo={showMemo}
           onToggleCollapse={() => setSidebarCollapsed(v => !v)}
-          onHome={() => { setShowExplorer(false); setShowMemo(false) }}
-          onToggleExplorer={() => { setShowExplorer(v => !v); setShowMemo(false) }}
-          onToggleMemo={() => { setShowMemo(v => !v); setShowExplorer(false) }}
-          onOpenProfile={() => setModal({ type: 'profile' })}
+          onNavigate={() => { if (window.innerWidth < 768) setSidebarCollapsed(true) }}
+          onOpenCategoryList={() => setModal({ type: 'categoryList' })}
+          onOpenWorkspaceList={() => setModal({ type: 'workspaceList' })}
         />
 
-        <div className="relative flex flex-1 min-h-0 overflow-hidden">
-          {!showExplorer && !showMemo && !sidebarCollapsed && (
-            <button
-              className="absolute inset-0 z-20 bg-black/40 md:hidden"
-              onClick={() => setSidebarCollapsed(true)}
-              aria-label="사이드바 닫기"
-            />
-          )}
-          {!showExplorer && !showMemo && (
-            <Sidebar
-              collapsed={sidebarCollapsed}
-              onNavigate={() => { if (window.innerWidth < 768) setSidebarCollapsed(true) }}
-            />
-          )}
+        {/* 헤더 영역 + 대시보드(콘텐츠) 영역 - 사이드바 오른쪽 컬럼에서만 분리 */}
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          <TopHeader
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed(v => !v)}
+            onOpenProfile={() => setModal({ type: 'profile' })}
+            onAddLink={() => setModal({ type: 'link' })}
+            favoritesOnly={favoritesOnly}
+            onToggleFavorites={() => setFavoritesOnly(v => !v)}
+          />
 
-          <main className="flex-1 flex min-w-0 overflow-hidden">
-            {showExplorer ? (
-              <ExplorerView onBack={() => setShowExplorer(false)} />
-            ) : showMemo ? (
-              <MemoView />
-            ) : (
-              <LinkView
-                onAddLink={() => setModal({ type: 'link' })}
-                onEditLink={(link) => setModal({ type: 'link', link })}
-                onOpenCategoryList={() => setModal({ type: 'categoryList' })}
-                onOpenWorkspaceList={() => setModal({ type: 'workspaceList' })}
+          <main className="flex-1 flex min-w-0 min-h-0 overflow-hidden">
+            <Routes>
+              <Route
+                index
+                element={
+                  <LinkView
+                    onAddLink={() => setModal({ type: 'link' })}
+                    onEditLink={(link) => setModal({ type: 'link', link })}
+                    favoritesOnly={favoritesOnly}
+                  />
+                }
               />
-            )}
+              <Route path="filesearch" element={<ExplorerView onBack={() => navigate('/')} />} />
+              <Route path="memo" element={<MemoView />} />
+              <Route path="downloads" element={<DownloadCenter />} />
+              <Route path="watercheck" element={<WaterCheck />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
           </main>
         </div>
       </div>
@@ -124,7 +133,6 @@ export default function App() {
 
       {state.isAuthenticated && (
         <Routes>
-          <Route path="/" element={<MainLayout />} />
           <Route
             path="/admin"
             element={
@@ -133,7 +141,8 @@ export default function App() {
                 : <Navigate to="/" replace />
             }
           />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="/l/:id" element={<LinkDetailPopup />} />
+          <Route path="/*" element={<MainLayout />} />
         </Routes>
       )}
 

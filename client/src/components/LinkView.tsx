@@ -1,18 +1,14 @@
-import { useEffect, useCallback, useRef, useState } from 'react'
+import { useEffect, useCallback, useState, useRef } from 'react'
 import {
-  LayoutGrid, Table2, Copy, Plus, Sun, Moon, Pencil, Trash2,
-  ExternalLink, FileText, ChevronLeft, ChevronRight, MoreHorizontal, Star, FolderOpen, Layers,
+  Pencil, Trash2, ExternalLink, FileText, ChevronLeft, ChevronRight, MoreHorizontal, Star,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { useApp } from '@/store/AppContext'
 import { api, resolveImageUrl } from '@/api/client'
-import { copyText } from '@/lib/utils'
+import { categoryAccent } from '@/lib/utils'
 import { toast } from '@/components/ui/toast'
-import { applyTheme, getStoredTheme } from '@/lib/theme'
 import type { Link } from '@/types'
 import LinkCard from './LinkCard'
-import MemoPanel from './MemoPanel'
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent,
 } from '@dnd-kit/core'
@@ -26,27 +22,31 @@ const PAGE_SIZE = 10
 interface SortableLinkProps {
   link: Link
   viewMode: 'grid' | 'list'
-  onEdit: () => void
-  onDelete: () => void
-  onMemo: () => void
-  onFavorite: () => void
+  isOwner: boolean
+  onEdit: (link: Link) => void
+  onDelete: (link: Link) => void
+  onMemo: (link: Link) => void
+  onFavorite: (link: Link) => void
 }
 
-function SortableLink({ link, viewMode, onEdit, onDelete, onMemo, onFavorite }: SortableLinkProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: link.id })
+// onEdit 등을 link 하나 캡처한 인라인 클로저로 매번 새로 만들지 않고, 상위에서 넘긴 고정 참조 함수를 그대로 씀 -
+// LinkCard가 React.memo라 이래야 실제로 리렌더가 스킵됨
+function SortableLink({ link, viewMode, isOwner, onEdit, onDelete, onMemo, onFavorite }: SortableLinkProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: link.id, disabled: !isOwner })
   const style = { transform: CSS.Transform.toString(transform), transition }
   return (
     <div ref={setNodeRef} style={style}>
-      <LinkCard link={link} viewMode={viewMode} isDragging={isDragging} dragHandleProps={{ ...attributes, ...listeners }} onEdit={onEdit} onDelete={onDelete} onMemo={onMemo} onFavorite={onFavorite} />
+      <LinkCard link={link} viewMode={viewMode} isDragging={isDragging} isOwner={isOwner} dragHandleProps={isOwner ? { ...attributes, ...listeners } : undefined} onEdit={onEdit} onDelete={onDelete} onMemo={onMemo} onFavorite={onFavorite} />
     </div>
   )
 }
 
-function TableActionMenu({ link, onEdit, onDelete, onMemo }: {
+function TableActionMenu({ link, isOwner, onEdit, onDelete, onMemo }: {
   link: Link
-  onEdit: () => void
-  onDelete: () => void
-  onMemo: () => void
+  isOwner: boolean
+  onEdit: (link: Link) => void
+  onDelete: (link: Link) => void
+  onMemo: (link: Link) => void
 }) {
   const [open, setOpen] = useState(false)
 
@@ -65,21 +65,79 @@ function TableActionMenu({ link, onEdit, onDelete, onMemo }: {
           <button className="fixed inset-0 z-10 cursor-default" onClick={() => setOpen(false)} aria-label="관리 메뉴 닫기" />
           <div className="absolute right-0 top-9 z-20 min-w-36 border border-border bg-card py-1 text-left shadow-lg">
             {link.note && (
-              <button className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-muted" onClick={() => { setOpen(false); onMemo() }}>
+              <button className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-muted" onClick={() => { setOpen(false); onMemo(link) }}>
                 <FileText className="h-4 w-4 text-muted-foreground" /> 메모 보기
               </button>
             )}
             <a href={link.url} target="_blank" rel="noopener noreferrer" className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-muted" onClick={() => setOpen(false)}>
               <ExternalLink className="h-4 w-4 text-muted-foreground" /> 사이트 이동
             </a>
-            <button className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-muted" onClick={() => { setOpen(false); onEdit() }}>
-              <Pencil className="h-4 w-4 text-muted-foreground" /> 수정
-            </button>
-            <button className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-destructive hover:bg-muted" onClick={() => { setOpen(false); onDelete() }}>
-              <Trash2 className="h-4 w-4" /> 삭제
-            </button>
+            {isOwner && (
+              <>
+                <button className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold hover:bg-muted" onClick={() => { setOpen(false); onEdit(link) }}>
+                  <Pencil className="h-4 w-4 text-muted-foreground" /> 수정
+                </button>
+                <button className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold text-destructive hover:bg-muted" onClick={() => { setOpen(false); onDelete(link) }}>
+                  <Trash2 className="h-4 w-4" /> 삭제
+                </button>
+              </>
+            )}
           </div>
         </>
+      )}
+    </div>
+  )
+}
+
+// 카드 그리드는 기본 2줄까지만 보여주고, 넘치면 구분선+화살표로 펼치기/접기
+const CARD_HEIGHT = 320 // LinkCard 그리드 카드 h-80
+const GRID_GAP = 12 // gap-3
+const TWO_ROWS_HEIGHT = CARD_HEIGHT * 2 + GRID_GAP
+
+function CollapsibleGrid({ children }: { children: React.ReactNode }) {
+  const innerRef = useRef<HTMLDivElement>(null)
+  const [expanded, setExpanded] = useState(false)
+  const [needsToggle, setNeedsToggle] = useState(false)
+  const [fullHeight, setFullHeight] = useState(0)
+
+  useEffect(() => {
+    const el = innerRef.current
+    if (!el) return
+    const measure = () => {
+      setFullHeight(el.scrollHeight)
+      setNeedsToggle(el.scrollHeight > TWO_ROWS_HEIGHT + 1)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [children])
+
+  return (
+    <div>
+      <div
+        ref={innerRef}
+        className="transition-[max-height] duration-300 ease-in-out"
+        style={needsToggle
+          ? { maxHeight: expanded ? fullHeight : TWO_ROWS_HEIGHT, overflow: expanded ? 'visible' : 'hidden' }
+          : undefined}
+      >
+        {children}
+      </div>
+      {needsToggle && (
+        <button
+          onClick={() => setExpanded(v => !v)}
+          className="w-full flex items-center gap-3 py-2.5"
+          aria-label={expanded ? '접기' : '더 보기'}
+        >
+          <span className="flex-1 h-1 bg-muted-foreground/60" />
+          <img
+            src="/down.png"
+            alt=""
+            className={`h-6 w-6 shrink-0 object-contain dark:invert transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`}
+          />
+          <span className="flex-1 h-1 bg-muted-foreground/60" />
+        </button>
       )}
     </div>
   )
@@ -88,40 +146,26 @@ function TableActionMenu({ link, onEdit, onDelete, onMemo }: {
 interface Props {
   onAddLink: () => void
   onEditLink: (link: Link) => void
-  onOpenCategoryList: () => void
-  onOpenWorkspaceList: () => void
+  favoritesOnly: boolean
 }
 
-export default function LinkView({ onAddLink, onEditLink, onOpenCategoryList, onOpenWorkspaceList }: Props) {
-  const { state, loadLinks, setSearchQuery, setViewMode } = useApp()
-  const [memoLink, setMemoLink] = useState<Link | null>(null)
-  const [isDark, setIsDark] = useState(() => getStoredTheme() === 'dark')
+// 카드 클릭 시 사이드 패널 대신 메모+계정정보를 보여주는 별도 팝업창을 새로 띄움
+function openLinkPopup(id: number) {
+  window.open(
+    `/l/${id}`,
+    `link-popup-${id}`,
+    'width=440,height=720,resizable=yes,scrollbars=yes'
+  )
+}
+
+export default function LinkView({ onAddLink, onEditLink, favoritesOnly }: Props) {
+  const { state, loadLinks } = useApp()
   const [tablePage, setTablePage] = useState(1)
   const [tableCategoryId, setTableCategoryId] = useState<number | 'all'>('all')
-  const [favoritesOnly, setFavoritesOnly] = useState(false)
-  const searchRef = useRef<HTMLInputElement>(null)
-
-  function toggleTheme() {
-    const next = isDark ? 'light' : 'dark'
-    applyTheme(next)
-    setIsDark(!isDark)
-  }
 
   useEffect(() => {
     if (state.isAuthenticated) loadLinks()
   }, [state.selectedCategoryId])
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault()
-        searchRef.current?.focus()
-        searchRef.current?.select()
-      }
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [])
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -159,21 +203,26 @@ export default function LinkView({ onAddLink, onEditLink, onOpenCategoryList, on
     if (tablePage > totalTablePages) setTablePage(totalTablePages)
   }, [tablePage, totalTablePages])
 
-  const canReorder = state.selectedCategoryId !== null && !state.searchQuery.trim() && !favoritesOnly
+  // 공유는 조회 전용 - 링크가 속한 카테고리를 내가 소유했을 때만 수정/삭제/순서변경 허용
+  const isLinkOwner = useCallback((link: Link) => {
+    const cat = state.categories.find(c => c.id === link.category_id)
+    return cat ? cat.user_id === state.currentUser?.id : link.user_id === state.currentUser?.id
+  }, [state.categories, state.currentUser])
+
+  const selectedCategoryOwned = state.selectedCategoryId === null
+    ? false
+    : state.categories.find(c => c.id === state.selectedCategoryId)?.user_id === state.currentUser?.id
+  const canReorder = state.selectedCategoryId !== null && !state.searchQuery.trim() && !favoritesOnly && selectedCategoryOwned
 
   const groupedLinks = state.selectedCategoryId === null
     ? (() => {
-        const byCategory = new Map<number, { name: string; links: Link[] }>()
+        const byCategory = new Map<number, { id: number; name: string; links: Link[] }>()
         for (const link of filteredLinks) {
-          if (!byCategory.has(link.category_id)) byCategory.set(link.category_id, { name: link.category_name, links: [] })
+          if (!byCategory.has(link.category_id)) byCategory.set(link.category_id, { id: link.category_id, name: link.category_name, links: [] })
           byCategory.get(link.category_id)!.links.push(link)
         }
         const order = new Map(state.categories.map((c, i) => [c.id, i]))
-        return [...byCategory.values()].sort((a, b) => {
-          const aId = state.categories.find(c => c.name === a.name)?.id ?? 999
-          const bId = state.categories.find(c => c.name === b.name)?.id ?? 999
-          return (order.get(aId) ?? 999) - (order.get(bId) ?? 999)
-        })
+        return [...byCategory.values()].sort((a, b) => (order.get(a.id) ?? 999) - (order.get(b.id) ?? 999))
       })()
     : null
 
@@ -195,18 +244,18 @@ export default function LinkView({ onAddLink, onEditLink, onOpenCategoryList, on
     }
   }, [filteredLinks, loadLinks])
 
-  async function handleDelete(id: number) {
+  // link를 캡처한 인라인 클로저 대신 상위에서 고정 참조로 넘길 수 있게 useCallback으로 묶음 (LinkCard React.memo 효과를 살리기 위함)
+  const handleDeleteLink = useCallback(async (link: Link) => {
     if (!confirm('이 링크를 삭제할까요?')) return
     try {
-      await api(`/api/links/${id}`, { method: 'DELETE' })
-      if (memoLink?.id === id) setMemoLink(null)
+      await api(`/api/links/${link.id}`, { method: 'DELETE' })
       await loadLinks()
     } catch (err: unknown) {
       toast(err instanceof Error ? err.message : '삭제 실패', { variant: 'destructive' })
     }
-  }
+  }, [loadLinks])
 
-  async function handleFavorite(link: Link) {
+  const handleFavoriteLink = useCallback(async (link: Link) => {
     try {
       await api(`/api/links/${link.id}/favorite`, {
         method: 'PUT',
@@ -216,44 +265,42 @@ export default function LinkView({ onAddLink, onEditLink, onOpenCategoryList, on
     } catch (err: unknown) {
       toast(err instanceof Error ? err.message : '즐겨찾기 변경 실패', { variant: 'destructive' })
     }
-  }
+  }, [loadLinks])
 
-  async function handleCopyLinks() {
-    if (filteredLinks.length === 0) { toast('복사할 링크가 없습니다.'); return }
-    try {
-      await copyText(filteredLinks.map(l => `${l.site_name} - ${l.url}`).join('\n'))
-      toast(`${filteredLinks.length}개 링크 복사됨`)
-    } catch (err: unknown) {
-      toast(err instanceof Error ? err.message : '복사 실패', { variant: 'destructive' })
-    }
-  }
+  const handleMemoLink = useCallback((link: Link) => openLinkPopup(link.id), [])
 
   const catTitle = state.selectedCategoryId
     ? (state.categories.find(c => c.id === state.selectedCategoryId)?.name || '카테고리')
     : '전체 링크'
 
-  const renderLinks = (links: Link[]) => (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <SortableContext items={links.map(l => l.id)} strategy={state.viewMode === 'grid' ? rectSortingStrategy : verticalListSortingStrategy}>
-        <div className={state.viewMode === 'grid'
-          ? 'grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3'
-          : 'flex flex-col gap-1.5'
-        }>
-          {links.map(link => (
-            <SortableLink
-              key={link.id}
-              link={link}
-              viewMode={state.viewMode}
-              onEdit={() => onEditLink(link)}
-              onDelete={() => handleDelete(link.id)}
-              onMemo={() => setMemoLink(link)}
-              onFavorite={() => handleFavorite(link)}
-            />
-          ))}
-        </div>
-      </SortableContext>
-    </DndContext>
-  )
+  const renderLinks = (links: Link[]) => {
+    const grid = (
+      <div className={state.viewMode === 'grid'
+        ? 'grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3'
+        : 'flex flex-col gap-1.5'
+      }>
+        {links.map(link => (
+          <SortableLink
+            key={link.id}
+            link={link}
+            viewMode={state.viewMode}
+            isOwner={isLinkOwner(link)}
+            onEdit={onEditLink}
+            onDelete={handleDeleteLink}
+            onMemo={handleMemoLink}
+            onFavorite={handleFavoriteLink}
+          />
+        ))}
+      </div>
+    )
+    return (
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={links.map(l => l.id)} strategy={state.viewMode === 'grid' ? rectSortingStrategy : verticalListSortingStrategy}>
+          {state.viewMode === 'grid' ? <CollapsibleGrid>{grid}</CollapsibleGrid> : grid}
+        </SortableContext>
+      </DndContext>
+    )
+  }
 
   const renderTable = () => (
     <div className="overflow-hidden border border-border bg-card">
@@ -271,7 +318,9 @@ export default function LinkView({ onAddLink, onEditLink, onOpenCategoryList, on
             .map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
         </select>
       </div>
-      <div className="overflow-x-auto">
+      {/* touch-pan-x: 안 넓은 테이블을 모바일에서 좌우 스크롤할 때, 이 영역이 세로 스와이프까지 가로채서
+          바깥 페이지가 스크롤 안 되는 문제가 있어서 가로 제스처만 처리하도록 명시 (세로는 바깥으로 넘김) */}
+      <div className="overflow-x-auto touch-pan-x">
         <table className="w-full min-w-[900px] table-fixed border-collapse text-sm [&_th]:border [&_th]:border-border [&_th]:text-center [&_td]:border [&_td]:border-border [&_td]:text-center">
           <thead className="bg-muted/50 text-sm font-bold text-foreground">
             <tr>
@@ -302,7 +351,7 @@ export default function LinkView({ onAddLink, onEditLink, onOpenCategoryList, on
                     <div className="flex min-w-0 items-center justify-start gap-2.5">
                       <button
                         className="shrink-0 p-1"
-                        onClick={() => handleFavorite(link)}
+                        onClick={() => handleFavoriteLink(link)}
                         title={link.is_favorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
                       >
                         <Star className={`h-4 w-4 ${link.is_favorite ? 'fill-amber-400 text-amber-500' : 'text-muted-foreground/40 hover:text-amber-500'}`} />
@@ -312,13 +361,13 @@ export default function LinkView({ onAddLink, onEditLink, onOpenCategoryList, on
                           ? <img src={imageUrl} alt="" className="h-full w-full object-contain p-1" />
                           : (link.site_name || '?')[0].toUpperCase()}
                       </div>
-                      <button className="truncate text-left font-semibold hover:text-primary" onClick={() => setMemoLink(link)}>
+                      <button className="truncate text-left font-semibold hover:text-primary" onClick={() => openLinkPopup(link.id)}>
                         {link.site_name}
                       </button>
                     </div>
                   </td>
                   <td className="truncate px-4 py-3.5 !text-left text-muted-foreground" title={link.description || ''}>
-                    {link.description || '—'}
+                    {link.description || '-'}
                   </td>
                   <td className="truncate px-4 py-3.5 text-muted-foreground" title={link.category_name}>
                     {link.category_name}
@@ -331,9 +380,10 @@ export default function LinkView({ onAddLink, onEditLink, onOpenCategoryList, on
                   <td className="px-4 py-3.5">
                     <TableActionMenu
                       link={link}
-                      onMemo={() => setMemoLink(link)}
-                      onEdit={() => onEditLink(link)}
-                      onDelete={() => handleDelete(link.id)}
+                      isOwner={isLinkOwner(link)}
+                      onMemo={handleMemoLink}
+                      onEdit={onEditLink}
+                      onDelete={handleDeleteLink}
                     />
                   </td>
                 </tr>
@@ -347,7 +397,7 @@ export default function LinkView({ onAddLink, onEditLink, onOpenCategoryList, on
         <span className="text-xs text-muted-foreground">
           {tableFilteredLinks.length > 0 ? (safeTablePage - 1) * PAGE_SIZE + 1 : 0}–{Math.min(safeTablePage * PAGE_SIZE, tableFilteredLinks.length)} / 총 {tableFilteredLinks.length}개
         </span>
-        <div className="flex max-w-full items-center justify-center gap-1 overflow-x-auto">
+        <div className="flex max-w-full items-center justify-center gap-1 overflow-x-auto touch-pan-x">
           <button
             className="rounded-md p-1.5 hover:bg-muted disabled:cursor-not-allowed disabled:opacity-30"
             disabled={safeTablePage === 1}
@@ -381,60 +431,6 @@ export default function LinkView({ onAddLink, onEditLink, onOpenCategoryList, on
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      {/* Sub-header */}
-      <header className="flex flex-wrap items-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2.5 border-b border-border bg-background shrink-0">
-        <Button size="sm" className="h-8 gap-1 font-semibold shrink-0" onClick={onAddLink}>
-          <Plus className="w-4 h-4" /> <span className="hidden min-[380px]:inline">링크 추가</span>
-        </Button>
-        <Button size="sm" variant="outline" className="h-8 gap-1.5 px-2.5 shrink-0" onClick={onOpenCategoryList} title="카테고리 편집">
-          <FolderOpen className="h-4 w-4" />
-          <span className="hidden sm:inline">카테고리 편집</span>
-        </Button>
-        <Button size="sm" variant="outline" className="h-8 gap-1.5 px-2.5 shrink-0" onClick={onOpenWorkspaceList} title="작업 그룹 편집">
-          <Layers className="h-4 w-4" />
-          <span className="hidden sm:inline">작업 그룹 편집</span>
-        </Button>
-        <button
-          className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0"
-          onClick={toggleTheme}
-          title={isDark ? '라이트 모드로 전환' : '다크 모드로 전환'}
-        >
-          {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-        </button>
-        <Button size="sm" variant="outline" className="h-8 px-2 border-border shrink-0" onClick={handleCopyLinks} title="링크 복사">
-          <Copy className="w-4 h-4" />
-        </Button>
-        <Button
-          size="sm"
-          variant={favoritesOnly ? 'default' : 'outline'}
-          className="h-8 gap-1.5 px-2.5 shrink-0"
-          onClick={() => setFavoritesOnly(value => !value)}
-          title="즐겨찾기만 보기"
-        >
-          <Star className={`h-4 w-4 ${favoritesOnly ? 'fill-current' : ''}`} />
-          <span className="hidden min-[420px]:inline">즐겨찾기</span>
-        </Button>
-        <div className="flex border border-border rounded-lg overflow-hidden shrink-0">
-          <button
-            className={`px-2.5 py-1.5 text-sm transition-colors ${state.viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
-            onClick={() => setViewMode('grid')} title="그리드 보기"
-          ><LayoutGrid className="w-4 h-4" /></button>
-          <button
-            className={`px-2.5 py-1.5 text-sm border-l border-border transition-colors ${state.viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
-            onClick={() => setViewMode('list')} title="테이블 보기"
-          ><Table2 className="w-4 h-4" /></button>
-        </div>
-        <div className="order-last w-full sm:order-none sm:w-56">
-          <Input
-            ref={searchRef}
-            value={state.searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="검색… (Ctrl+K)"
-            className="h-8 bg-secondary border-border"
-          />
-        </div>
-      </header>
-
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-2.5 sm:p-4">
         <h2 className="text-base sm:text-lg font-bold mb-3 sm:mb-4">{catTitle}</h2>
@@ -450,36 +446,45 @@ export default function LinkView({ onAddLink, onEditLink, onOpenCategoryList, on
           renderTable()
         ) : groupedLinks ? (
           <div className="space-y-6">
-            {groupedLinks.map(group => (
-              <div key={group.name}>
-                <h3 className="text-sm font-semibold text-muted-foreground mb-2 pb-1 border-b">{group.name}</h3>
-                {renderLinks(group.links)}
-              </div>
-            ))}
+            {groupedLinks.map(group => {
+              const accent = categoryAccent(group.id)
+              return (
+                <div key={group.id}>
+                  <div className="flex items-center gap-2 mb-3 pb-1.5 border-b border-border">
+                    <span className={`h-2 w-2 rounded-full shrink-0 ${accent.dot}`} />
+                    <h3 className="text-sm font-bold text-foreground">{group.name}</h3>
+                    <span className="text-xs text-muted-foreground font-semibold tabular-nums">{group.links.length}</span>
+                  </div>
+                  {renderLinks(group.links)}
+                </div>
+              )
+            })}
           </div>
         ) : (
-          canReorder ? renderLinks(filteredLinks) : (
-            <div className={state.viewMode === 'grid'
-              ? 'grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3'
-              : 'flex flex-col gap-1.5'
-            }>
-              {filteredLinks.map(link => (
-                <LinkCard
-                  key={link.id}
-                  link={link}
-                  viewMode={state.viewMode}
-                  onEdit={() => onEditLink(link)}
-                  onDelete={() => handleDelete(link.id)}
-                  onMemo={() => setMemoLink(link)}
-                  onFavorite={() => handleFavorite(link)}
-                />
-              ))}
-            </div>
-          )
+          canReorder ? renderLinks(filteredLinks) : (() => {
+            const grid = (
+              <div className={state.viewMode === 'grid'
+                ? 'grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3'
+                : 'flex flex-col gap-1.5'
+              }>
+                {filteredLinks.map(link => (
+                  <LinkCard
+                    key={link.id}
+                    link={link}
+                    viewMode={state.viewMode}
+                    isOwner={isLinkOwner(link)}
+                    onEdit={onEditLink}
+                    onDelete={handleDeleteLink}
+                    onMemo={handleMemoLink}
+                    onFavorite={handleFavoriteLink}
+                  />
+                ))}
+              </div>
+            )
+            return state.viewMode === 'grid' ? <CollapsibleGrid>{grid}</CollapsibleGrid> : grid
+          })()
         )}
       </div>
-
-      <MemoPanel link={memoLink} onClose={() => setMemoLink(null)} />
     </div>
   )
 }

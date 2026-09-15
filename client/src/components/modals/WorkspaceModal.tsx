@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { FormRow, underlineInputClass } from '@/components/ui/form-row'
 import { useApp } from '@/store/AppContext'
 import { api } from '@/api/client'
 import type { Workspace, Link } from '@/types'
@@ -83,21 +82,20 @@ export default function WorkspaceModal({ open, workspace, onClose, onSaved }: Pr
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg flex flex-col max-h-[85vh]">
-        <DialogHeader className="shrink-0">
-          <DialogTitle>{workspace ? '작업 그룹 수정' : '작업 그룹 추가'}</DialogTitle>
+        <DialogHeader>
+          <DialogTitle>{workspace ? '작업 그룹 수정' : '작업 그룹 입력'}</DialogTitle>
         </DialogHeader>
 
-        <form id="ws-form" onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 gap-4">
-          {/* 스크롤 영역 */}
-          <div className="flex-1 overflow-y-auto pr-1 space-y-4">
-            <div className="space-y-1">
-              <Label htmlFor="ws-name">그룹 이름 *</Label>
-              <Input id="ws-name" value={name} onChange={e => setName(e.target.value)} placeholder="예: 광고 관리" required autoFocus />
-            </div>
-            <div className="space-y-2">
-              <Label>포함할 링크 (클릭 시 탭으로 함께 열림)</Label>
+        <form id="ws-form" onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <DialogBody className="p-0 flex flex-col">
+            <FormRow label="그룹 이름" required>
+              <input id="ws-name" value={name} onChange={e => setName(e.target.value)} placeholder="예: 광고 관리" required autoFocus className={underlineInputClass} />
+            </FormRow>
+
+            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+              <p className="text-sm font-semibold text-foreground">포함할 링크 (클릭 시 탭으로 함께 열림)</p>
               {allLinks.length > 0 && (
-                <label className="flex items-center gap-2 text-sm cursor-pointer pb-1 border-b">
+                <label className="flex items-center gap-2 text-sm cursor-pointer pb-1 border-b border-border">
                   <input
                     type="checkbox"
                     checked={allChecked}
@@ -130,13 +128,13 @@ export default function WorkspaceModal({ open, workspace, onClose, onSaved }: Pr
                 {allLinks.length === 0 && <p className="text-sm text-muted-foreground">링크가 없습니다.</p>}
               </div>
             </div>
-          </div>
 
-          {/* 항상 노출되는 하단 */}
-          {error && <p className="text-sm text-destructive shrink-0">{error}</p>}
-          <DialogFooter className="shrink-0">
+            {error && <p className="px-3 py-2 text-sm text-destructive shrink-0">{error}</p>}
+          </DialogBody>
+
+          <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>취소</Button>
-            <Button type="submit">저장</Button>
+            <Button type="submit">확인</Button>
           </DialogFooter>
         </form>
       </DialogContent>

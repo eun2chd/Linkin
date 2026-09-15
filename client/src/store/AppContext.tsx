@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useReducer, useCallback, useMemo, type ReactNode } from 'react'
 import type { User, Category, Link, Workspace, ViewMode } from '@/types'
 import { api, setToken, clearToken, getToken, setApiBase, getApiBase } from '@/api/client'
 
@@ -72,7 +72,7 @@ function reducer(state: AppState, action: Action): AppState {
 
 interface AppContextValue {
   state: AppState
-  login: (token: string, user: User) => Promise<void>
+  login: (token: string, user: User, keepLoggedIn?: boolean) => Promise<void>
   logout: () => void
   updateApiBase: (url: string) => void
   loadCategories: () => Promise<void>
@@ -91,8 +91,8 @@ const AppContext = createContext<AppContextValue | null>(null)
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState)
 
-  const login = useCallback(async (token: string, user: User) => {
-    setToken(token)
+  const login = useCallback(async (token: string, user: User, keepLoggedIn = true) => {
+    setToken(token, keepLoggedIn)
     dispatch({ type: 'SET_AUTH', payload: { user } })
   }, [])
 
@@ -158,12 +158,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // value 객체를 매 렌더마다 새로 만들면 이 컨텍스트를 구독하는 모든 컴포넌트(사이드바, 카드 목록 등 사실상 앱 전체)가
+  // state가 실제로 안 바뀌어도 그냥 리렌더됨 - useMemo로 묶어서 state/함수 참조가 그대로면 리렌더 안 타게 함
+  const value = useMemo(() => ({
+    state, login, logout, updateApiBase,
+    loadCategories, loadLinks, loadWorkspaces, loadAll,
+    setSelectedCategory, setSearchQuery, setViewMode, setCurrentUser, checkAuth,
+  }), [state, login, logout, updateApiBase, loadCategories, loadLinks, loadWorkspaces, loadAll, setSelectedCategory, setSearchQuery, setViewMode, setCurrentUser, checkAuth])
+
   return (
-    <AppContext.Provider value={{
-      state, login, logout, updateApiBase,
-      loadCategories, loadLinks, loadWorkspaces, loadAll,
-      setSelectedCategory, setSearchQuery, setViewMode, setCurrentUser, checkAuth,
-    }}>
+    <AppContext.Provider value={value}>
       {children}
     </AppContext.Provider>
   )

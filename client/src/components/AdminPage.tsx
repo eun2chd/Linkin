@@ -8,11 +8,12 @@ import { api } from '@/api/client'
 import { toast } from '@/components/ui/toast'
 import {
   Shield, ShieldOff, Trash2, KeyRound, RefreshCw,
-  ArrowLeft, Users, UserCheck, FolderSearch,
+  ArrowLeft, Users, UserCheck, FolderSearch, LayoutGrid, ChevronDown,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
 } from 'lucide-react'
 import { Tooltip } from '@/components/ui/tooltip'
 import AdminDataPanel, { type AdminSection } from '@/components/AdminDataPanel'
+import PasswordResetRequestsPanel from '@/components/PasswordResetRequestsPanel'
 
 interface AdminUser {
   id: number
@@ -35,7 +36,9 @@ export default function AdminPage() {
   const [resetTarget, setResetTarget] = useState<AdminUser | null>(null)
   const [newPw, setNewPw] = useState('')
   const [pwError, setPwError] = useState('')
-  const [activeSection, setActiveSection] = useState<'users' | AdminSection>('users')
+  const [activeSection, setActiveSection] = useState<'users' | 'resetRequests' | AdminSection>('users')
+  const [pendingResetCount, setPendingResetCount] = useState(0)
+  const [menuOpen, setMenuOpen] = useState(true)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -50,6 +53,12 @@ export default function AdminPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    api<{ status: string }[]>('/api/admin/password-reset-requests')
+      .then(rows => setPendingResetCount(rows.filter(r => r.status === 'pending').length))
+      .catch(() => {})
+  }, [activeSection])
 
   async function toggleExplorer(user: AdminUser) {
     const next = user.can_explorer ? 0 : 1
@@ -117,54 +126,92 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen h-[100dvh] bg-background">
-      {/* 페이지 헤더 */}
-      <header className="flex items-center h-14 sm:h-16 px-3 sm:px-6 border-b border-border bg-background shrink-0 gap-2 sm:gap-4">
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div className="w-px h-6 bg-border" />
-        <div className="flex items-center gap-2">
-          <Shield className="w-5 h-5 text-primary" />
-          <h1 className="text-base font-semibold">관리자 페이지</h1>
+    <div className="relative flex h-screen h-[100dvh] overflow-hidden">
+      {/* 사이드 패널 - 메인 대시보드 사이드바와 동일한 톤/구조 */}
+      <aside className="flex w-full md:w-52 shrink-0 flex-col border-b md:border-b-0 md:border-r border-border bg-secondary">
+        <div className="h-14 md:h-20 flex items-center border-b border-border bg-card shrink-0 px-2">
+          <img src="/elinko-logo-removebg.png" alt="Elinko" className="h-11 md:h-16 w-full object-contain" />
         </div>
-        <div className="ml-auto">
-          {activeSection === 'users' && (
-          <Button size="sm" variant="ghost" onClick={load} disabled={loading} className="px-2 sm:px-3">
-            <RefreshCw className={`w-4 h-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">새로고침</span>
-          </Button>
-          )}
-        </div>
-      </header>
+        {/* 홈 사이드바와 동일한 아코디언 구조: 섹션 헤더 + 접이식 리스트 */}
+        <nav className="flex-1 overflow-y-auto">
+          <div className="p-2 space-y-1">
+            <div>
+              <button
+                className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold text-foreground transition-colors ${menuOpen ? 'bg-muted' : 'hover:bg-muted/60'}`}
+                onClick={() => setMenuOpen(v => !v)}
+                aria-expanded={menuOpen}
+              >
+                <LayoutGrid className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="flex-1 text-left">관리 메뉴</span>
+                <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-300 ${menuOpen ? 'rotate-180' : ''}`} />
+              </button>
+              <div className="grid transition-[grid-template-rows] duration-300 ease-in-out" style={{ gridTemplateRows: menuOpen ? '1fr' : '0fr' }}>
+                <div className="overflow-hidden">
+                  <ul className="pt-0.5 pb-1">
+                    {([
+                      ['users', '사용자 관리'],
+                      ['resetRequests', '비밀번호 재설정 요청'],
+                      ['links', '전체 링크 관리'],
+                      ['categories', '카테고리 관리'],
+                      ['workspaces', '작업 그룹 관리'],
+                      ['memos', '메모 관리'],
+                      ['logs', '활동 로그'],
+                    ] as const).map(([id, label]) => (
+                      <li key={id} className="border-b border-border last:border-0">
+                        <button
+                          className={`w-full flex items-center gap-2 text-left pl-4 pr-2.5 py-2.5 text-sm transition-colors ${
+                            activeSection === id ? 'bg-muted text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                          }`}
+                          onClick={() => setActiveSection(id)}
+                        >
+                          <span className="flex-1 truncate">{label}</span>
+                          {id === 'resetRequests' && pendingResetCount > 0 && (
+                            <Badge variant="destructive" className="h-4 px-1.5 text-[10px] shrink-0">
+                              {pendingResetCount}
+                            </Badge>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </nav>
+      </aside>
 
-      <div className="flex flex-1 min-h-0 flex-col md:flex-row">
-        <aside className="flex w-full md:w-52 shrink-0 gap-1 overflow-x-auto border-b md:border-b-0 md:border-r border-border bg-secondary p-2 md:flex-col md:p-3">
-          {([
-            ['users', '사용자 관리'],
-            ['links', '전체 링크 관리'],
-            ['categories', '카테고리 관리'],
-            ['workspaces', '작업 그룹 관리'],
-            ['memos', '메모 관리'],
-            ['logs', '활동 로그'],
-          ] as const).map(([id, label]) => (
-            <button
-              key={id}
-              className={`shrink-0 whitespace-nowrap px-3 py-2 text-left text-sm font-semibold transition-colors ${activeSection === id ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
-              onClick={() => setActiveSection(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </aside>
+      {/* 헤더 영역 + 콘텐츠 영역 - 메인 대시보드와 동일하게 사이드바 오른쪽 컬럼에서만 분리 */}
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        <header className="flex items-center h-14 md:h-20 px-3 sm:px-6 border-b border-border bg-background shrink-0 gap-2 sm:gap-4">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+            title="대시보드로 돌아가기"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div className="w-px h-6 bg-border" />
+          <div className="flex items-center gap-2">
+            <Shield className="w-5 h-5 text-primary" />
+            <h1 className="text-base font-semibold">관리자 페이지</h1>
+          </div>
+          <div className="ml-auto">
+            {activeSection === 'users' && (
+            <Button size="sm" variant="ghost" onClick={load} disabled={loading} className="px-2 sm:px-3">
+              <RefreshCw className={`w-4 h-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">새로고침</span>
+            </Button>
+            )}
+          </div>
+        </header>
 
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-4 sm:space-y-6">
 
-          {activeSection !== 'users' ? (
+          {activeSection === 'resetRequests' ? (
+            <PasswordResetRequestsPanel />
+          ) : activeSection !== 'users' ? (
             <AdminDataPanel section={activeSection} />
           ) : (
           <>
@@ -288,7 +335,7 @@ export default function AdminPage() {
 
                           {/* 부서 */}
                           <td className="px-4 py-3.5 text-muted-foreground">
-                            {user.department || <span className="text-muted-foreground/40">—</span>}
+                            {user.department || <span className="text-muted-foreground/40">-</span>}
                           </td>
 
                           {/* 역할 */}
@@ -301,7 +348,7 @@ export default function AdminPage() {
                           {/* 파일탐색기 */}
                           <td className="px-4 py-3.5 text-center">
                             {isMe ? (
-                              <span className="text-muted-foreground/40 text-xs">—</span>
+                              <span className="text-muted-foreground/40 text-xs">-</span>
                             ) : (
                               <Tooltip content={user.can_explorer ? '비활성화' : '활성화'} side="top">
                                 <button
@@ -325,7 +372,7 @@ export default function AdminPage() {
                           {/* 관리 */}
                           <td className="px-4 py-3.5">
                             {isMe ? (
-                              <span className="text-muted-foreground/40 text-xs text-center block">—</span>
+                              <span className="text-muted-foreground/40 text-xs text-center block">-</span>
                             ) : (
                               <div className="flex items-center justify-center gap-0.5">
                                 <Tooltip content={user.role === 'admin' ? '관리자 해제' : '관리자 지정'} side="top">

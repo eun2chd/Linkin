@@ -36,7 +36,7 @@ export default function SettingsModal({ open, onClose }: Props) {
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">
-            <Label htmlFor="api-base">Link_in API 서버 주소</Label>
+            <Label htmlFor="api-base">Elinko API 서버 주소</Label>
             <Input id="api-base" value={value} onChange={e => setValue(e.target.value)} placeholder="http://192.168.0.12:3000" />
             <p className="text-xs text-muted-foreground">같은 PC: 비워두세요 / 내부망: 서버 PC IP:3000</p>
           </div>

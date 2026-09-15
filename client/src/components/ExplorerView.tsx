@@ -38,7 +38,7 @@ export default function ExplorerView({ onBack }: Props) {
         const lastTime = status.last?.time ? new Date(status.last.time).toLocaleDateString('ko-KR') : '-'
         setScanStatus(`${status.total.toLocaleString()}개 항목 · 마지막 스캔: ${lastTime}`)
       } else {
-        setScanStatus('데이터 없음 — 스캔 필요')
+        setScanStatus('데이터 없음 - 스캔 필요')
       }
     } catch {
       setScanStatus('오류')

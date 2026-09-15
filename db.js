@@ -105,11 +105,34 @@ async function initDb() {
       )
     `);
   } catch (_) {}
-  try { await conn.query("ALTER TABLE users ADD COLUMN can_explorer TINYINT(1) NOT NULL DEFAULT 1"); } catch (_) {}
+  try { await conn.query("ALTER TABLE users ADD COLUMN can_explorer TINYINT(1) NOT NULL DEFAULT 0"); } catch (_) {}
+  try { await conn.query("ALTER TABLE users ALTER COLUMN can_explorer SET DEFAULT 0"); } catch (_) {}
+
+  // 비밀번호 재설정 요청 (관리자 승인제)
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS password_reset_requests (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      username VARCHAR(50) NOT NULL,
+      name VARCHAR(50) NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      resolved_at TIMESTAMP NULL DEFAULT NULL,
+      resolved_by INT DEFAULT NULL,
+      INDEX idx_prr_status (status, created_at),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (resolved_by) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
 
   try { await conn.query('ALTER TABLE categories ADD COLUMN user_id INT DEFAULT NULL'); } catch (_) {}
   try { await conn.query('ALTER TABLE categories ADD COLUMN is_shared TINYINT(1) DEFAULT 0'); } catch (_) {}
   try { await conn.query("ALTER TABLE categories ADD COLUMN share_scope VARCHAR(20) NOT NULL DEFAULT 'all'"); } catch (_) {}
+  // 카테고리 뎁스(대/중/소메뉴): parent_id로 최대 3단계 트리 구성
+  try { await conn.query('ALTER TABLE categories ADD COLUMN parent_id INT DEFAULT NULL'); } catch (_) {}
+  try { await conn.query('ALTER TABLE categories ADD COLUMN depth TINYINT NOT NULL DEFAULT 1'); } catch (_) {}
+  try { await conn.query('ALTER TABLE categories ADD INDEX idx_categories_parent (parent_id)'); } catch (_) {}
+  try { await conn.query('ALTER TABLE categories ADD CONSTRAINT fk_categories_parent FOREIGN KEY (parent_id) REFERENCES categories(id) ON DELETE CASCADE'); } catch (_) {}
 
   await conn.query(`
     CREATE TABLE IF NOT EXISTS category_shares (
@@ -141,6 +164,27 @@ async function initDb() {
   try { await conn.query('ALTER TABLE links MODIFY COLUMN site_image TEXT DEFAULT NULL'); } catch (_) {}
   try { await conn.query('ALTER TABLE links ADD COLUMN note TEXT DEFAULT NULL'); } catch (_) {}
   try { await conn.query('ALTER TABLE links ADD COLUMN user_id INT DEFAULT NULL'); } catch (_) {}
+  try { await conn.query('ALTER TABLE links ADD COLUMN bg_color VARCHAR(20) DEFAULT NULL'); } catch (_) {}
+  try { await conn.query('ALTER TABLE links ADD COLUMN bg_image TEXT DEFAULT NULL'); } catch (_) {}
+
+  // 링크(사이트)당 여러 개 저장 가능한 계정 정보 - 비밀번호는 암호화 저장, 비공유 시 열람용 비밀번호 별도
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS link_accounts (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      link_id INT NOT NULL,
+      name VARCHAR(100) NOT NULL,
+      username VARCHAR(255) NOT NULL,
+      password_enc TEXT NOT NULL,
+      is_shared TINYINT(1) NOT NULL DEFAULT 1,
+      view_password_hash VARCHAR(255) DEFAULT NULL,
+      user_id INT NOT NULL,
+      sort_order INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_link_accounts_link (link_id),
+      FOREIGN KEY (link_id) REFERENCES links(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
 
   await conn.query(`
     CREATE TABLE IF NOT EXISTS link_favorites (
@@ -189,6 +233,24 @@ async function initDb() {
       INDEX idx_memos_user_group (user_id, group_id),
       FOREIGN KEY (group_id) REFERENCES memo_groups(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // 메모 첨부파일 - memo_id가 NULL인 동안은 "저장 전 임시 업로드" 상태 (메모 저장 시점에 연결됨)
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS memo_attachments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      memo_id INT DEFAULT NULL,
+      filename VARCHAR(500) NOT NULL,
+      original_name VARCHAR(500) NOT NULL,
+      file_size BIGINT NOT NULL DEFAULT 0,
+      file_type VARCHAR(100) DEFAULT NULL,
+      uploaded_by INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_memo_attach_memo (memo_id),
+      INDEX idx_memo_attach_uploader (uploaded_by),
+      FOREIGN KEY (memo_id) REFERENCES memos(id) ON DELETE CASCADE,
+      FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
@@ -305,6 +367,46 @@ async function initDb() {
       FOREIGN KEY (link_id) REFERENCES links(id) ON DELETE CASCADE
     )
   `);
+
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS download_categories (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      sort_order INT DEFAULT 0,
+      access_scope VARCHAR(20) NOT NULL DEFAULT 'all',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  try { await conn.query("ALTER TABLE download_categories ADD COLUMN access_scope VARCHAR(20) NOT NULL DEFAULT 'all'"); } catch (_) {}
+
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS download_category_access (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      category_id INT NOT NULL,
+      user_id INT NOT NULL,
+      UNIQUE KEY uq_dca (category_id, user_id),
+      INDEX idx_dca_cat (category_id),
+      INDEX idx_dca_user (user_id)
+    )
+  `);
+
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS download_files (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      title VARCHAR(200) NOT NULL,
+      description TEXT DEFAULT NULL,
+      filename VARCHAR(500) NOT NULL,
+      original_name VARCHAR(500) NOT NULL,
+      file_size BIGINT NOT NULL DEFAULT 0,
+      file_type VARCHAR(100) DEFAULT NULL,
+      category_id INT DEFAULT NULL,
+      uploaded_by INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_uploaded_by (uploaded_by),
+      INDEX idx_category (category_id)
+    )
+  `);
+  try { await conn.query("ALTER TABLE download_files ADD COLUMN category_id INT DEFAULT NULL"); } catch (_) {}
 
   await conn.end();
   console.log('DB 초기화 완료');
